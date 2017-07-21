@@ -29,6 +29,7 @@ class Model<a> implements State<a> {
 }
 
 const nothing: Array<any> = Object.freeze([])
+const noquery: Query = Object.freeze(Object.create(null))
 
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
@@ -43,9 +44,6 @@ class ParserAPI<a, b> implements Parser<a, b> {
   }
   query<c>(parser: QueryParser<b, c>): ParserAPI<a, [c, b]> {
     return new ChainedParser(this, parser)
-  }
-  map<c>(f: b => c): ParserAPI<a, c> {
-    return new MappedParser(this, f)
   }
   lift<c>(f: (...args: AsTuple<b>) => c): Parser<a, c> {
     return new MappedParser(this, out => f(...toTuple(out)))
@@ -90,7 +88,7 @@ class UnionParser<a, b> extends ParserAPI<a, b> {
   }
 }
 
-class VariableParser<a, b> extends ParserAPI<a, [b, a]> {
+class Reader<a, b> extends ParserAPI<a, [b, a]> {
   read: string => ?b
   constructor(read: string => ?b) {
     super()
@@ -150,20 +148,20 @@ export const chain = <a, b, c>(
   after: Parser<b, c>
 ): ParserAPI<a, c> => new ChainedParser(before, after)
 
-export const variable = <a, b, c>(
+export const reader = <a, b, c>(
   parser: Parser<a, b>,
   read: string => ?c
-): ParserAPI<b, [c, b]> => new VariableParser(read)
+): ParserAPI<b, [c, b]> => new Reader(read)
 
 export const segment = <a>(text: string): ParserAPI<a, a> =>
   new SegmentParser(text)
 
 export const string = <a, b>(parser: Parser<a, b>): ParserAPI<b, [string, b]> =>
-  variable(parser, identity)
+  reader(parser, identity)
 
 export const integer = <a, b>(
   parser: Parser<a, b>
-): ParserAPI<b, [number, b]> => variable(parser, readInteger)
+): ParserAPI<b, [number, b]> => reader(parser, readInteger)
 
 export const readInteger = (input: string): ?number => {
   const value = parseFloat(input)
@@ -182,7 +180,7 @@ export const identity = <a>(value: a): a => value
 export const parse = <a>(
   parser: Parser<null, a>,
   url: string,
-  query: Query
+  query: Query = noquery
 ): ?a => {
   const variants = parser.parse(state(splitURL(url), null, query))
   return parseHelp(variants)
@@ -212,11 +210,6 @@ export const splitURL = (url: string): string[] => {
   }
 }
 
-export const map = <a, b, c>(
-  mapper: b => c,
-  parser: Parser<a, b>
-): ParserAPI<a, c> => new MappedParser(parser, mapper)
-
 export const lift = <a, b, c>(
   lifter: (...args: AsTuple<b>) => c,
   parser: Parser<a, b>
@@ -233,8 +226,8 @@ export const render = <a, b>(
     const parser = stack.pop()
     if (parser instanceof SegmentParser) {
       segments.push(parser.text)
-    } else if (parser instanceof VariableParser) {
-      segments.push(String(args[++index]))
+    } else if (parser instanceof Reader) {
+      segments.push(String(args[index++]))
     } else if (parser instanceof ChainedParser) {
       const { before, after } = parser
       stack.push(before)
@@ -289,20 +282,3 @@ export const parseHash = <a>(
   location: { hash: string, search: string }
 ): ?a =>
   parse(parser, location.hash.slice(1), parseQueryString(location.search))
-
-const url = "/user/bob/comments/42"
-const userCommentParser = segment("user")
-  .chain(string)
-  .segment("comments")
-  .chain(integer)
-
-userCommentParser
-
-const comment = lift(
-  (name: string, id: number) => ({ name, id }),
-  userCommentParser
-)
-parse(comment, url, {})
-parse(root, url, {})
-
-render(userCommentParser, "Jack", 15)
