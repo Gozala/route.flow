@@ -1,0 +1,78 @@
+Arguments: 
+  /usr/local/bin/node /usr/local/bin/yarn install
+
+PATH: 
+  /Users/gozala/.cargo/bin:/Users/gozala/Projects/clojurescript/bin:/Users/gozala/Projects/moz-git-tools://node_modules/.bin:/Users/gozala/.lein/bin:/Users/gozala/.local/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/X11/bin:/Users/gozala/.go/bin:/usr/local/bin/bin
+
+Yarn version: 
+  0.24.6
+
+Node version: 
+  7.10.0
+
+Platform: 
+  darwin x64
+
+npm manifest: 
+  {
+    "version": "0.0.0",
+    "name": "url-parser.flow",
+    "description": "Library for turning URLs into typed data structures",
+    "keywords": [
+      "url-parser",
+      "url",
+      "parser",
+      "typed",
+      "flow"
+    ],
+    "main": "lib/URLParser",
+    "module": "src/URLParser",
+    "author": "Irakli Gozalishvili <rfobic@gmail.com> (http://jeditoolkit.com)",
+    "repository": "https://github.com/Gozala/url-parser.flow",
+    "license": "MIT",
+    "devDependencies": {
+      "babel-cli": "6.24.1",
+      "babel-preset-flow-node": "^1.0.2",
+      "babel-register": "6.24.1",
+      "blue-tape": "^1.0.0",
+      "documentation": "^4.0.0-rc.1",
+      "flow-bin": "^0.49.1",
+      "flow-copy-source": "^1.2.0",
+      "husky": "^0.14.0",
+      "lint-staged": "^4.0.0",
+      "prettier": "^1.4.4"
+    },
+    "scripts": {
+      "test": "npm run test:flow && npm run test:tape",
+      "test:tape": "blue-tape -r babel-register test/**/*.js",
+      "test:flow": "flow check",
+      "build:clear": "rm -rf lib",
+      "build:types": "flow-copy-source --verbose src lib",
+      "build:node": "babel --out-dir lib src",
+      "build:api": "documentation readme --section=API src/URLParser.js",
+      "build:docs": "documentation build --document-exported src/** -f html --o docs",
+      "build": "npm run build:node && npm run build:types",
+      "prepublish": "npm run build && npm test",
+      "precommit": "lint-staged",
+      "start": "flow-copy-source --watch --verbose src lib & babel --watch --out-dir lib src"
+    },
+    "lint-staged": {
+      "*.js": [
+        "prettier --parser flow --no-semi --write",
+        "git add"
+      ]
+    }
+  }
+
+yarn manifest: 
+  No manifest
+
+Lockfile: 
+  No lockfile
+
+Trace: 
+  Error: https://registry.yarnpkg.com/babel-cli: ETIMEDOUT
+      at Timeout._onTimeout (/usr/local/Cellar/yarn/0.24.6/libexec/lib/yarn-cli.js:108518:19)
+      at ontimeout (timers.js:386:14)
+      at tryOnTimeout (timers.js:250:5)
+      at Timer.listOnTimeout (timers.js:214:5)
