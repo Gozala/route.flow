@@ -15,15 +15,16 @@
   "repository": "https://github.com/Gozala/url-parser.flow",
   "license": "MIT",
   "devDependencies": {
+    "alias-quokka-plugin": "^0.1.0",
     "babel-cli": "6.24.1",
     "babel-preset-flow-node": "^1.0.2",
     "babel-register": "6.24.1",
     "blue-tape": "^1.0.0",
-    "documentation": "^4.0.0-rc.1",
-    "flow-bin": "^0.50.0",
+    "documentation": "^5.2.1",
+    "flow-bin": "^0.52.0",
     "flow-copy-source": "^1.2.0",
     "husky": "^0.14.0",
-    "lint-staged": "^4.0.0",
+    "lint-staged": "^4.0.3",
     "prettier": "^1.4.4"
   },
   "scripts": {
@@ -45,5 +46,20 @@
       "prettier --parser flow --no-semi --write",
       "git add"
     ]
+  },
+  "quokka": {
+    "alias": {
+      "url-parser.flow": "src/URLParser"
+    },
+    "pro": true,
+    "babel": true,
+    "plugins": [
+      "alias-quokka-plugin"
+    ]
+  },
+  "dependencies": {
+    "express": "^4.15.4",
+    "float.flow": "^0.1.1",
+    "integer.flow": "^0.1.0"
   }
 }

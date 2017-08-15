@@ -8,6 +8,7 @@
 [include]
 
 [options]
-
+module.name_mapper='url-parser.flow' -> '<PROJECT_ROOT>/src/URLParser'
+experimental.strict_call_arity=true
 suppress_comment= \\(.\\|\n\\)*\\@FlowIssue
 suppress_comment= \\(.\\|\n\\)*\\@FlowIgnore

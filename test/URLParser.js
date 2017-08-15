@@ -2,33 +2,31 @@
 
 import * as URLParser from "../"
 import test from "blue-tape"
+import * as Integer from "integer.flow"
 
 test("test baisc", async test => {
   test.isEqual(typeof URLParser, "object")
-  test.isEqual(typeof URLParser.root, "object")
+  test.isEqual(typeof URLParser.Root, "object")
   test.isEqual(typeof URLParser.segment, "function")
-  test.isEqual(typeof URLParser.render, "function")
-  test.isEqual(typeof URLParser.chain, "function")
-  test.isEqual(typeof URLParser.lift, "function")
+  test.isEqual(typeof URLParser.format, "function")
+  test.isEqual(typeof URLParser.append, "function")
 
-  test.isEqual(typeof URLParser.reader, "function")
-  test.isEqual(typeof URLParser.string, "function")
-  test.isEqual(typeof URLParser.integer, "function")
+  test.isEqual(typeof URLParser.paramParser, "function")
+  test.isEqual(typeof URLParser.String, "object")
+  test.isEqual(typeof URLParser.Integer, "object")
+  test.isEqual(typeof URLParser.Float, "object")
 
-  test.isEqual(typeof URLParser.param, "function")
-  test.isEqual(typeof URLParser.stringParam, "function")
-  test.isEqual(typeof URLParser.integerParam, "function")
-
+  test.isEqual(typeof URLParser.query, "function")
   test.isEqual(typeof URLParser.parse, "function")
   test.isEqual(typeof URLParser.parseHash, "function")
-  test.isEqual(typeof URLParser.parseURL, "function")
+  test.isEqual(typeof URLParser.parsePath, "function")
 })
 
 test("test parser", async test => {
   const userCommentParser = URLParser.segment("user")
-    .chain(URLParser.string)
+    .param(URLParser.String)
     .segment("comments")
-    .chain(URLParser.integer)
+    .param(URLParser.Integer)
 
   class Comment {
     name: string
@@ -42,16 +40,23 @@ test("test parser", async test => {
     }
   }
 
-  const comment = userCommentParser.lift(Comment.new)
-
   test.deepEqual(
-    URLParser.parse(comment, "/user/bob/comments/42"),
+    URLParser.parse(
+      userCommentParser,
+      "/user/bob/comments/42",
+      {},
+      Comment.new
+    ),
     new Comment("bob", 42)
   )
 
-  test.deepEqual(URLParser.parse(comment, "/user/bob/comment/42"), null)
   test.deepEqual(
-    URLParser.render(userCommentParser, "Jack", 15),
+    URLParser.parse(userCommentParser, "/user/bob/comment/42", {}, Comment.new),
+    null
+  )
+
+  test.deepEqual(
+    URLParser.format(userCommentParser, "Jack", Integer.truncate(15)),
     "/user/Jack/comments/15"
   )
 })

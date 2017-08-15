@@ -1,11 +1,19 @@
 /* @flow */
 
-import type { AsTuple } from "./URLParser/Tuple"
-import { toTuple } from "./URLParser/Tuple"
+import type { Concat } from "./URLParser/Concat"
+import type { float } from "float.flow"
+import type { integer } from "integer.flow"
+import type { URL, Query } from "./URLParser/URL"
+import { flatmap } from "./URLParser/Array"
+import { identity } from "./URLParser/Prelude"
+import { parseInteger } from "integer.flow"
+import { parseFloat } from "float.flow"
+import { toString } from "./URLParser/String"
+import { readPath, readQuery } from "./URLParser/URL"
 
-export type Query = {
-  [key: string]: string
-}
+export type { float, integer, URL, Query }
+
+export type Parse = <a>(Parser<a>, URL) => ?a
 
 export interface State<a> {
   segments: Array<string>,
@@ -13,9 +21,22 @@ export interface State<a> {
   query: Query
 }
 
-export interface Parser<a, b> {
-  parse(state: State<a>): Array<State<b>>
+export interface SegmentParser<out> {
+  parseSegment<inn>(state: State<inn>): State<Concat<inn, out>>[]
 }
+
+export interface QueryParser<out> {
+  parseParam<inn>(string, state: State<inn>): State<Concat<inn, out>>[]
+}
+
+export interface Parser<out> extends SegmentParser<out> {
+  parsePath(URL): ?out,
+  parseHash(URL): ?out,
+  formatPath(...params: Array<mixed> & out): string,
+  formatHash(...params: Array<mixed> & out): string
+}
+
+export type ParamParser<out> = Parser<out> & QueryParser<out>
 
 class Model<a> implements State<a> {
   segments: Array<string>
@@ -29,40 +50,53 @@ class Model<a> implements State<a> {
 }
 
 const nothing: Array<any> = Object.freeze([])
-const noquery: Query = Object.freeze(Object.create(null))
+const init: [] = Object.freeze([])
 
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
 
-class ParserAPI<a, b> implements Parser<a, b> {
-  +parse: (state: State<a>) => Array<State<b>>
-  segment(name: string): ParserAPI<a, b> {
-    return new ChainedParser(this, new SegmentParser(name))
+class URLParser<out> implements Parser<out> {
+  +parseSegment: <inn>(state: State<inn>) => Array<State<Concat<inn, out>>>
+
+  segment(name: string = ""): URLParser<out> {
+    return new Concatenation(this, new Segment(name))
   }
-  chain<c>(next: (Parser<a, b>) => Parser<b, c>): ParserAPI<a, c> {
-    return new ChainedParser(this, next(this))
+  param<b>(parser: Parser<[b]>): URLParser<Concat<out, [b]>> {
+    return new Concatenation(this, parser)
   }
-  query<c>(parser: QueryParser<b, c>): ParserAPI<a, [c, b]> {
-    return new ChainedParser(this, parser)
+  query<b>(
+    name: string,
+    paramParser: QueryParser<[b]>
+  ): URLParser<Concat<out, [b]>> {
+    return this.param(query(name, paramParser))
   }
-  lift<c>(f: (...args: AsTuple<b>) => c): Parser<a, c> {
-    return new MappedParser(this, out => f(...toTuple(out)))
+  formatPath(...params: Array<mixed> & out): string {
+    return formatPath(this, ...params)
+  }
+  formatHash(...params: Array<mixed> & out): string {
+    return formatHash(this, ...params)
+  }
+  parsePath(url: URL): ?out {
+    return parsePath(this, url)
+  }
+  parseHash(url: URL): ?out {
+    return parseHash(this, url)
   }
 }
 
-class RootParser extends ParserAPI<null, null> {
-  parse(state: State<null>): Array<State<null>> {
+class RootParser extends URLParser<[]> {
+  parseSegment<inn>(state: State<inn>): State<inn>[] {
     return [state]
   }
 }
 
-class SegmentParser<a> extends ParserAPI<a, a> {
+class Segment extends URLParser<[]> {
   text: string
   constructor(text: string) {
     super()
     this.text = text
   }
-  parse({ params, segments, query }: State<a>): Array<State<a>> {
+  parseSegment<inn>({ params, segments, query }: State<inn>): State<inn>[] {
     const { text } = this
     if (segments.length === 0) {
       return nothing
@@ -77,113 +111,104 @@ class SegmentParser<a> extends ParserAPI<a, a> {
   }
 }
 
-class UnionParser<a, b> extends ParserAPI<a, b> {
-  parsers: Parser<a, b>[]
-  constructor(parsers: Parser<a, b>[]) {
-    super()
-    this.parsers = parsers
-  }
-  parse(state: State<a>): Array<State<b>> {
-    return flatmap(parser => parser.parse(state), this.parsers)
-  }
-}
-
-class Reader<a, b> extends ParserAPI<a, [b, a]> {
-  read: string => ?b
-  constructor(read: string => ?b) {
+class Param<a> extends URLParser<[a]>
+  implements ParamParser<[a]>, Parser<[a]>, QueryParser<[a]> {
+  read: string => ?a
+  constructor(read: string => ?a) {
     super()
     this.read = read
   }
-  parse({ segments, params, query }: State<a>): Array<State<[b, a]>> {
+  parseSegment<inn>({
+    segments,
+    params,
+    query
+  }: State<inn>): Array<State<Concat<inn, [a]>>> {
     if (segments.length === 0) {
       return nothing
     } else {
       const [next, ...rest] = segments
       const chunk = this.read(next)
       if (chunk != null) {
-        return [state(rest, [chunk, params], query)]
+        return [state(rest, [...(params: any), chunk], query)]
       } else {
         return nothing
       }
     }
   }
+  parseParam<inn>(
+    name: string,
+    { segments, params, query }: State<inn>
+  ): Array<State<Concat<inn, [a]>>> {
+    const param = query[name]
+    const value = param != null ? this.read(param) : null
+    if (value == null) {
+      return nothing
+    } else {
+      return [state(segments, [...(params: any), value], query)]
+    }
+  }
 }
 
-class ChainedParser<a, b, c> extends ParserAPI<a, c> {
-  before: Parser<a, b>
-  after: Parser<b, c>
-  constructor(before: Parser<a, b>, after: Parser<b, c>) {
+class Concatenation<a, b> extends URLParser<Concat<a, b>> {
+  before: Parser<a>
+  after: Parser<b>
+  constructor(before: Parser<a>, after: Parser<b>) {
     super()
     this.before = before
     this.after = after
   }
-  parse(state: State<a>): Array<State<c>> {
+  parseSegment<inn>(
+    state: State<inn>
+  ): Array<State<Concat<Concat<inn, a>, b>>> {
     const { before, after } = this
-    return flatmap((state: State<b>) => after.parse(state), before.parse(state))
+    return flatmap(
+      (state: State<Concat<inn, a>>): State<Concat<Concat<inn, a>, b>>[] =>
+        after.parseSegment(state),
+      (before.parseSegment(state): State<Concat<inn, a>>[])
+    )
   }
 }
 
-class MappedParser<a, b, c> extends ParserAPI<a, c> {
-  mapper: (input: b) => c
-  parser: Parser<a, b>
-  constructor(parser: Parser<a, b>, mapper: b => c) {
+class QueryParam<out> extends URLParser<[out]> {
+  name: string
+  parser: QueryParser<[out]>
+  constructor(name: string, parser: QueryParser<[out]>) {
     super()
-    this.mapper = mapper
+    this.name = name
     this.parser = parser
   }
-  parse(model: State<a>): Array<State<c>> {
-    const { mapper, parser } = this
-    return parser
-      .parse(model)
-      .map(({ segments, params, query }: State<b>) =>
-        state(segments, mapper(params), query)
-      )
+  parseSegment<inn>(state: State<inn>): Array<State<Concat<inn, [out]>>> {
+    return this.parser.parseParam(this.name, state)
   }
 }
 
-export const root: ParserAPI<null, null> = new RootParser()
+export const Root: URLParser<[]> = new RootParser()
+export const concat = <a, b>(
+  before: Parser<a>,
+  after: Parser<b>
+): URLParser<Concat<a, b>> => new Concatenation(before, after)
 
-export const chain = <a, b, c>(
-  before: Parser<a, b>,
-  after: Parser<b, c>
-): ParserAPI<a, c> => new ChainedParser(before, after)
+export const segment = (text: string = ""): URLParser<[]> => new Segment(text)
+export const paramParser = <a>(read: string => ?a): ParamParser<[a]> =>
+  new Param(read)
 
-export const reader = <a, b, c>(
-  parser: Parser<a, b>,
-  read: string => ?c
-): ParserAPI<b, [c, b]> => new Reader(read)
+export const String: ParamParser<[string]> = paramParser(identity)
+export const Integer: ParamParser<[integer]> = paramParser(parseInteger)
+export const Float: ParamParser<[float]> = paramParser(parseFloat)
 
-export const segment = <a>(text: string): ParserAPI<a, a> =>
-  new SegmentParser(text)
+export const query = <a>(
+  name: string,
+  parser: QueryParser<[a]>
+): URLParser<[a]> => new QueryParam(name, parser)
 
-export const string = <a, b>(parser: Parser<a, b>): ParserAPI<b, [string, b]> =>
-  reader(parser, identity)
-
-export const integer = <a, b>(
-  parser: Parser<a, b>
-): ParserAPI<b, [number, b]> => reader(parser, readInteger)
-
-export const readInteger = (input: string): ?number => {
-  const value = parseFloat(input)
-  if (Number.isInteger(value)) {
-    return value
-  } else {
+export const parse = <a>(parser: Parser<a>, url: string, query: Query): ?a => {
+  const variants = parser.parseSegment(state(readPath(url), init, query))
+  const output = parseHelp(variants)
+  if (output == null) {
     return null
+  } else {
+    return output
   }
-}
-
-const flatmap = <a, b>(f: (input: a) => Array<b>, array: Array<a>): Array<b> =>
-  [].concat(...array.map(f))
-
-export const identity = <a>(value: a): a => value
-
-export const parse = <a>(
-  parser: Parser<null, a>,
-  url: string,
-  query: Query = noquery
-): ?a => {
-  const variants = parser.parse(state(splitURL(url), null, query))
-  return parseHelp(variants)
 }
 
 const parseHelp = <a>(states: Array<State<a>>): ?a => {
@@ -201,84 +226,59 @@ const parseHelp = <a>(states: Array<State<a>>): ?a => {
   }
 }
 
-export const splitURL = (url: string): string[] => {
-  const segments = url.split("/")
-  if (segments.length > 0 && segments[0] === "") {
-    return segments.slice(1)
-  } else {
-    return segments
-  }
-}
+export const parsePath = <a>(parser: Parser<a>, url: URL): ?a =>
+  parse(
+    parser,
+    url.pathname || "",
+    url.search == null ? {} : readQuery(url.search)
+  )
 
-export const lift = <a, b, c>(
-  lifter: (...args: AsTuple<b>) => c,
-  parser: Parser<a, b>
-): ParserAPI<a, c> => new MappedParser(parser, data => lifter(...toTuple(data)))
+export const parseHash = <a>(parser: Parser<a>, url: URL): ?a =>
+  parse(
+    parser,
+    (url.hash || "").slice(1),
+    url.search == null ? {} : readQuery(url.search)
+  )
 
-export const render = <a, b>(
-  parser: Parser<a, b>,
-  ...args: AsTuple<b>
+export const formatPath = <a>(
+  parser: Parser<a>,
+  ...args: Array<mixed> & a
+): string => format(parser, ...args)
+
+export const formatHash = <a>(
+  parser: Parser<a>,
+  ...args: Array<mixed> & a
+): string => `#${format(parser, ...args)}`
+
+export const format = <a>(
+  parser: Parser<a>,
+  ...args: Array<mixed> & a
 ): string => {
   const segments = [""]
+  const queryParams = []
   const stack: Array<mixed> = [parser]
   let index = 0
   while (stack.length > 0) {
-    const parser = stack.pop()
-    if (parser instanceof SegmentParser) {
+    const parser = stack.pop() //?
+    if (parser instanceof RootParser) {
+      continue
+    } else if (parser instanceof Segment) {
       segments.push(parser.text)
-    } else if (parser instanceof Reader) {
-      segments.push(String(args[index++]))
-    } else if (parser instanceof ChainedParser) {
+    } else if (parser instanceof Param) {
+      segments.push(toString(args[index++]))
+    } else if (parser instanceof Concatenation) {
       const { before, after } = parser
+      stack.push(after)
       stack.push(before)
-      stack.unshift(after)
+    } else if (parser instanceof QueryParam) {
+      const value = encodeURIComponent(toString(args[index++]))
+      const name = encodeURIComponent(parser.name)
+      queryParams.push(`${name}=${value}`)
     }
   }
-  return segments.join("/")
+
+  const pathname = segments.join("/")
+  const query = queryParams.join("&")
+  const search = queryParams === "" ? "" : `?${query}`
+  return `${pathname}${search}`
 }
-
-class QueryParser<a, b> implements Parser<a, [b, a]> {
-  name: string
-  read: (?string) => b
-  constructor(name: string, read: (?string) => b) {
-    this.name = name
-    this.read = read
-  }
-  parse({ segments, params, query }: State<a>): Array<State<[b, a]>> {
-    const value = this.read(query[this.name])
-    if (value == null) {
-      return nothing
-    } else {
-      return [state(segments, [value, params], query)]
-    }
-  }
-}
-
-export const param = <a, b>(
-  name: string,
-  read: (?string) => b
-): QueryParser<a, b> => new QueryParser(name, read)
-
-export const stringParam = <a>(name: string): QueryParser<a, ?string> =>
-  new QueryParser(name, identity)
-
-export const integerParam = <a>(name: string): QueryParser<a, ?number> =>
-  new QueryParser(name, input => (input != null ? readInteger(input) : null))
-
-const parseQueryString = (input: string): { [key: string]: string } =>
-  input.slice(1).split("&").reduce((query, segment) => {
-    const [key, value] = segment.split("=")
-    query[decodeURIComponent(key)] = decodeURIComponent(value)
-    return query
-  }, Object.create(null))
-
-export const parseURL = <a>(
-  parser: Parser<null, a>,
-  location: { pathname: string, search: string }
-): ?a => parse(parser, location.pathname, parseQueryString(location.search))
-
-export const parseHash = <a>(
-  parser: Parser<null, a>,
-  location: { hash: string, search: string }
-): ?a =>
-  parse(parser, location.hash.slice(1), parseQueryString(location.search))
