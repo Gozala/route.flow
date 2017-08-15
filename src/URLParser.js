@@ -4,7 +4,6 @@ import type { Concat } from "./URLParser/Concat"
 import type { float } from "float.flow"
 import type { integer } from "integer.flow"
 import type { URL, Query } from "./URLParser/URL"
-import { flatmap } from "./URLParser/Array"
 import { identity } from "./URLParser/Prelude"
 import { parseInteger } from "integer.flow"
 import { parseFloat } from "float.flow"
@@ -22,11 +21,11 @@ export interface State<a> {
 }
 
 export interface SegmentParser<out> {
-  parseSegment<inn>(state: State<inn>): State<Concat<inn, out>>[]
+  parseSegment<inn>(state: State<inn>): ?State<Concat<inn, out>>,
 }
 
 export interface QueryParser<out> {
-  parseParam<inn>(string, state: State<inn>): State<Concat<inn, out>>[]
+  parseParam<inn>(string, state: State<inn>): ?State<Concat<inn, out>>,
 }
 
 export interface Parser<out> extends SegmentParser<out> {
@@ -49,14 +48,13 @@ class Model<a> implements State<a> {
   }
 }
 
-const nothing: Array<any> = Object.freeze([])
 const init: [] = Object.freeze([])
 
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
 
 class URLParser<out> implements Parser<out> {
-  +parseSegment: <inn>(state: State<inn>) => Array<State<Concat<inn, out>>>
+  +parseSegment: <inn>(state: State<inn>) => ?State<Concat<inn, out>>
 
   segment(name: string = ""): URLParser<out> {
     return new Concatenation(this, new Segment(name))
@@ -66,9 +64,9 @@ class URLParser<out> implements Parser<out> {
   }
   query<b>(
     name: string,
-    paramParser: QueryParser<[b]>
+    parser: QueryParser<[b]>
   ): URLParser<Concat<out, [b]>> {
-    return this.param(query(name, paramParser))
+    return this.param(query(name, parser))
   }
   formatPath(...params: Array<mixed> & out): string {
     return formatPath(this, ...params)
@@ -85,8 +83,19 @@ class URLParser<out> implements Parser<out> {
 }
 
 class RootParser extends URLParser<[]> {
-  parseSegment<inn>(state: State<inn>): State<inn>[] {
-    return [state]
+  parseSegment<inn>(state: State<inn>): ?State<inn> {
+    switch (state.segments.length) {
+      case 0:
+        return state
+      case 1: {
+        if (state.segments[0] === "") {
+          return state
+        }
+      }
+      default:
+        return null
+    }
+  }
   }
 }
 
@@ -96,23 +105,22 @@ class Segment extends URLParser<[]> {
     super()
     this.text = text
   }
-  parseSegment<inn>({ params, segments, query }: State<inn>): State<inn>[] {
+  parseSegment<inn>({ params, segments, query }: State<inn>): ?State<inn> {
     const { text } = this
     if (segments.length === 0) {
-      return nothing
+      return null
     } else {
       const [first, ...rest] = segments
       if (first === text) {
-        return [state(rest, params, query)]
+        return state(rest, params, query)
       } else {
-        return nothing
+        return null
       }
     }
   }
 }
 
-class Param<a> extends URLParser<[a]>
-  implements ParamParser<[a]>, Parser<[a]>, QueryParser<[a]> {
+class Param<a> extends URLParser<[a]> implements QueryParser<[a]> {
   read: string => ?a
   constructor(read: string => ?a) {
     super()
@@ -122,29 +130,29 @@ class Param<a> extends URLParser<[a]>
     segments,
     params,
     query
-  }: State<inn>): Array<State<Concat<inn, [a]>>> {
+  }: State<inn>): ?State<Concat<inn, [a]>> {
     if (segments.length === 0) {
-      return nothing
+      return null
     } else {
       const [next, ...rest] = segments
       const chunk = this.read(next)
       if (chunk != null) {
-        return [state(rest, [...(params: any), chunk], query)]
+        return state(rest, [...(params: any), chunk], query)
       } else {
-        return nothing
+        return null
       }
     }
   }
   parseParam<inn>(
     name: string,
     { segments, params, query }: State<inn>
-  ): Array<State<Concat<inn, [a]>>> {
+  ): ?State<Concat<inn, [a]>> {
     const param = query[name]
     const value = param != null ? this.read(param) : null
     if (value == null) {
-      return nothing
+      return null
     } else {
-      return [state(segments, [...(params: any), value], query)]
+      return state(segments, [...(params: any), value], query)
     }
   }
 }
@@ -157,15 +165,15 @@ class Concatenation<a, b> extends URLParser<Concat<a, b>> {
     this.before = before
     this.after = after
   }
-  parseSegment<inn>(
-    state: State<inn>
-  ): Array<State<Concat<Concat<inn, a>, b>>> {
+  parseSegment<inn>(state: State<inn>): ?State<Concat<Concat<inn, a>, b>> {
     const { before, after } = this
-    return flatmap(
-      (state: State<Concat<inn, a>>): State<Concat<Concat<inn, a>, b>>[] =>
-        after.parseSegment(state),
-      (before.parseSegment(state): State<Concat<inn, a>>[])
-    )
+    const next = before.parseSegment(state)
+    if (next != null) {
+      return after.parseSegment(next)
+    } else {
+      return null
+    }
+  }
   }
 }
 
@@ -177,7 +185,7 @@ class QueryParam<out> extends URLParser<[out]> {
     this.name = name
     this.parser = parser
   }
-  parseSegment<inn>(state: State<inn>): Array<State<Concat<inn, [out]>>> {
+  parseSegment<inn>(state: State<inn>): ?State<Concat<inn, [out]>> {
     return this.parser.parseParam(this.name, state)
   }
 }
@@ -202,27 +210,11 @@ export const query = <a>(
 ): URLParser<[a]> => new QueryParam(name, parser)
 
 export const parse = <a>(parser: Parser<a>, url: string, query: Query): ?a => {
-  const variants = parser.parseSegment(state(readPath(url), init, query))
-  const output = parseHelp(variants)
+  const output = parser.parseSegment(state(readPath(url), init, query))
   if (output == null) {
     return null
   } else {
-    return output
-  }
-}
-
-const parseHelp = <a>(states: Array<State<a>>): ?a => {
-  if (states.length === 0) {
-    return null
-  } else {
-    const [state, ...rest] = states
-    if (state.segments.length === 0) {
-      return state.params
-    } else if (state.segments.length === 1 && state.segments[0] === "") {
-      return state.params
-    } else {
-      return parseHelp(rest)
-    }
+    return output.params
   }
 }
 

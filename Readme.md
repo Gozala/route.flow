@@ -459,8 +459,8 @@ URLParser.format(
   URLParser
     .segment("blog")
     .param(URLParser.String)
-    .format("tag")
-    .params(URLParser.String)
+    .segment("tag")
+    .param(URLParser.String)
     .segment(),
   "cats",
   "breed"
