@@ -4,11 +4,12 @@ import type { Concat } from "./URLParser/Concat"
 import type { float } from "float.flow"
 import type { integer } from "integer.flow"
 import type { URL, Query } from "./URLParser/URL"
+import { separate } from "./URLParser/Concat"
 import { identity } from "./URLParser/Prelude"
 import { parseInteger } from "integer.flow"
 import { parseFloat } from "float.flow"
 import { toString } from "./URLParser/String"
-import { readPath, readQuery } from "./URLParser/URL"
+import { readPath, writePath, readQuery, writeQuery } from "./URLParser/URL"
 
 export type { float, integer, URL, Query }
 
@@ -22,10 +23,12 @@ export interface State<a> {
 
 export interface SegmentParser<out> {
   parseSegment<inn>(state: State<inn>): ?State<Concat<inn, out>>,
+  formatSegment<inn>(state: State<Concat<inn, out>>): State<inn>
 }
 
 export interface QueryParser<out> {
   parseParam<inn>(string, state: State<inn>): ?State<Concat<inn, out>>,
+  formatParam<inn>(string, state: State<Concat<inn, out>>): State<inn>
 }
 
 export interface Parser<out> extends SegmentParser<out> {
@@ -55,6 +58,7 @@ const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
 
 class URLParser<out> implements Parser<out> {
   +parseSegment: <inn>(state: State<inn>) => ?State<Concat<inn, out>>
+  +formatSegment: <inn>(state: State<Concat<inn, out>>) => State<inn>
 
   segment(name: string = ""): URLParser<out> {
     return new Concatenation(this, new Segment(name))
@@ -96,6 +100,8 @@ class RootParser extends URLParser<[]> {
         return null
     }
   }
+  formatSegment<inn>(state: State<inn>): State<inn> {
+    return state
   }
 }
 
@@ -118,13 +124,18 @@ class Segment extends URLParser<[]> {
       }
     }
   }
+  formatSegment<inn>({ params, segments, query }: State<inn>): State<inn> {
+    return state([this.text, ...segments], params, query)
+  }
 }
 
 class Param<a> extends URLParser<[a]> implements QueryParser<[a]> {
   read: string => ?a
-  constructor(read: string => ?a) {
+  write: a => string
+  constructor(read: string => ?a, write: a => string) {
     super()
     this.read = read
+    this.write = write
   }
   parseSegment<inn>({
     segments,
@@ -143,6 +154,15 @@ class Param<a> extends URLParser<[a]> implements QueryParser<[a]> {
       }
     }
   }
+  formatSegment<inn>({
+    segments,
+    params,
+    query
+  }: State<Concat<inn, [a]>>): State<inn> {
+    const [rest, last] = separate(params)
+    const segment = this.write(last)
+    return state([segment, ...segments], rest, query)
+  }
   parseParam<inn>(
     name: string,
     { segments, params, query }: State<inn>
@@ -154,6 +174,13 @@ class Param<a> extends URLParser<[a]> implements QueryParser<[a]> {
     } else {
       return state(segments, [...(params: any), value], query)
     }
+  }
+  formatParam<inn>(name: string, model: State<Concat<inn, [a]>>): State<inn> {
+    const { segments, params, query } = model
+    const [rest, last] = separate(params)
+    const value = this.write(last)
+    query[name] = value
+    return state(segments, rest, query)
   }
 }
 
@@ -174,6 +201,9 @@ class Concatenation<a, b> extends URLParser<Concat<a, b>> {
       return null
     }
   }
+  formatSegment<inn>(state: State<Concat<Concat<inn, a>, b>>): State<inn> {
+    const next = this.after.formatSegment(state)
+    return this.before.formatSegment(next)
   }
 }
 
@@ -188,6 +218,9 @@ class QueryParam<out> extends URLParser<[out]> {
   parseSegment<inn>(state: State<inn>): ?State<Concat<inn, [out]>> {
     return this.parser.parseParam(this.name, state)
   }
+  formatSegment<inn>(state: State<Concat<inn, [out]>>): State<inn> {
+    return this.parser.formatParam(this.name, state)
+  }
 }
 
 export const Root: URLParser<[]> = new RootParser()
@@ -197,12 +230,14 @@ export const concat = <a, b>(
 ): URLParser<Concat<a, b>> => new Concatenation(before, after)
 
 export const segment = (text: string = ""): URLParser<[]> => new Segment(text)
-export const paramParser = <a>(read: string => ?a): ParamParser<[a]> =>
-  new Param(read)
+export const param = <a>(
+  read: string => ?a,
+  write: a => string
+): ParamParser<[a]> => new Param(read, write)
 
-export const String: ParamParser<[string]> = paramParser(identity)
-export const Integer: ParamParser<[integer]> = paramParser(parseInteger)
-export const Float: ParamParser<[float]> = paramParser(parseFloat)
+export const String: ParamParser<[string]> = param(identity, identity)
+export const Integer: ParamParser<[integer]> = param(parseInteger, toString)
+export const Float: ParamParser<[float]> = param(parseFloat, toString)
 
 export const query = <a>(
   name: string,
@@ -242,35 +277,12 @@ export const formatHash = <a>(
   ...args: Array<mixed> & a
 ): string => `#${format(parser, ...args)}`
 
-export const format = <a>(
-  parser: Parser<a>,
-  ...args: Array<mixed> & a
-): string => {
-  const segments = [""]
-  const queryParams = []
-  const stack: Array<mixed> = [parser]
-  let index = 0
-  while (stack.length > 0) {
-    const parser = stack.pop() //?
-    if (parser instanceof RootParser) {
-      continue
-    } else if (parser instanceof Segment) {
-      segments.push(parser.text)
-    } else if (parser instanceof Param) {
-      segments.push(toString(args[index++]))
-    } else if (parser instanceof Concatenation) {
-      const { before, after } = parser
-      stack.push(after)
-      stack.push(before)
-    } else if (parser instanceof QueryParam) {
-      const value = encodeURIComponent(toString(args[index++]))
-      const name = encodeURIComponent(parser.name)
-      queryParams.push(`${name}=${value}`)
-    }
-  }
-
-  const pathname = segments.join("/")
-  const query = queryParams.join("&")
-  const search = queryParams === "" ? "" : `?${query}`
+export const format = <a>(parser: Parser<a>, ...args: a): string => {
+  const { segments, params, query } = parser.formatSegment(
+    state([], (args: any), Object.create(null))
+  )
+  const pathname = writePath(segments)
+  const queryParams = writeQuery(query)
+  const search = queryParams === "" ? "" : `?${queryParams}`
   return `${pathname}${search}`
 }

@@ -31,3 +31,8 @@ export type Concat<a, b> = Lift<
     <_>(_): empty
   }
 >
+
+export const separate = <a, b>(all: Concat<a, [b]>): [a, b] => [
+  all.slice(0, all.length - 1),
+  all[all.length - 1]
+]
