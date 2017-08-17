@@ -314,7 +314,7 @@ blogID.parsePath({pathname:"blog/42/"}) //> [42]
 blogID.parsePath({pathname:"blog/"}) //> null
 blogID.parsePath({pathname:"42"}) //> null
 ```
-> **Note** Parsers passed can and often is going to be, a concatination as well.
+> **Note** Parsers being concatinated can and often will be, concatinations themself.
 
 ```js
 const blogSearch = Route.concat(Route.segment("blog"), Route.segment("search"))
@@ -374,9 +374,9 @@ calculator.parsePath({pathname:"/calculator/13/+/4.2/"}) // [13, 4.2]
 For convenience there is a `concat` method on route instences
 
 ```js
-const blog = Route.Root.segment("blog")
+const blogPosts = Route.Root.segment("blog")
 const postID = Route.segment("post").param(Route.Integer)
-const blogPostID = blog.concat(postID)
+const blogPostID = blogPosts.concat(postID)
 
 
 blogPostID.parsePath({pathname:"/blog/post/35/"}) //> [35]
@@ -387,13 +387,13 @@ blogPostID.parsePath({pathname:"/blog/post/"}) //> null
 > **Note** Parsers passed can and often is going to be, a concatination as well.
 
 ```js
-const blogSearch = Route.concat(Route.segment("blog"), Route.segment("search"))
-const searchTerm = Route.concat(blogSearch, Route.String)
+const search = Route.concat(Route.segment("blog"), Route.segment("search"))
+const term = Route.concat(search, Route.String)
 
-searchTerm.parsePath({pathname:"blog/search/cats/"}) //> ["cats"]
-searchTerm.parsePath({pathname:"blog/search/42/"}) //> ["42"]
-searchTerm.parsePath({pathname:"/search/cats/"}) //> null
-searchTerm.parsePath({pathname:"/blog/cats/"}) //> null
+term.parsePath({pathname:"blog/search/cats/"}) //> ["cats"]
+term.parsePath({pathname:"blog/search/42/"}) //> ["42"]
+term.parsePath({pathname:"/search/cats/"}) //> null
+term.parsePath({pathname:"/blog/cats/"}) //> null
 ```
 
 #### `param<a>(string => ?a, a => string):RouteParam<a>`
@@ -454,9 +454,9 @@ const find = Route
   .concat(limit)
 
 find.parsePath({search:"?limit=5"}) //> null
-find.parsePath({pathname:"/find",search:"?limit=5"}) //> null
-find.parsePath({pathname:"/find/cat",search:"?limit=5"}) //> ["cat", 5]
-find.parsePath({pathname:"/find/cat",search: "?limit=5&sort=asc"}) //> ["cat", 5]
+find.parsePath({pathname:"find",search:"?limit=5"}) //> null
+find.parsePath({pathname:"find/cat",search:"?limit=5"}) //> ["cat", 5]
+find.parsePath({pathname:"find/cat",search: "?limit=5&sort=asc"}) //> ["cat", 5]
 ```
 
 
@@ -466,6 +466,7 @@ For convenience there is also `query` method on the `Route` instences, which wil
 
 ```js
 const seek = Route.
+  Root.
   segment('seek').
   param(Route.String).
   query('limit', Route.Integer)
@@ -523,8 +524,8 @@ Route
   .Root
   .segment("blog")
   .param(Route.String)
-  .format("tag")
-  .params(Route.String)
+  .segment("tag")
+  .param(Route.String)
   .segment()
   .formatPath("cats", "breed") //> '/blog/cats/tag/breed/'
 ```
@@ -567,10 +568,10 @@ Route
   .Root
   .segment("blog")
   .param(Route.String)
-  .format("tag")
-  .params(Route.String)
+  .segment("tag")
+  .param(Route.String)
   .segment()
-  .format("cats", "breed") //> '#/blog/cats/tag/breed/'
+  .formatHash("cats", "breed") //> '#/blog/cats/tag/breed/'
 ```
 
 #### `format<a>(Route<a>, ...a):URL`
@@ -611,8 +612,8 @@ Route
   .Root
   .segment("blog")
   .param(Route.String)
-  .format("tag")
-  .params(Route.String)
+  .segment("tag")
+  .param(Route.String)
   .segment()
   .format("cats", "breed") //> {pathname: '/blog/cats/tag/breed/', search:'', hash:''}
 ```
