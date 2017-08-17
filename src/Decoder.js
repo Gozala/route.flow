@@ -1,14 +1,14 @@
 /* @flow */
 
-import type { URL, Parser, Parse } from "./URLParser"
-import { parsePath, parseHash } from "./URLParser"
+import type { URL, Route, Parse } from "./Route"
+import { parsePath, parseHash } from "./Route"
 
 export const decoder = (parse: Parse) => <a: Iterable<*>, b>(
-  parser: Parser<a>,
+  route: Route<a>,
   url: URL,
   decode: (...a) => b
 ): ?b => {
-  const params = parse(parser, url)
+  const params = parse(route, url)
   return params == null ? null : decode(...params)
 }
 

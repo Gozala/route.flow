@@ -1,44 +1,42 @@
 /* @flow */
 
-import type { Parser, State } from "./URLParser"
-import type { Concat } from "./URLParser/Concat"
-import { readPath } from "./URLParser/URL"
-import { concat, segment, Root } from "./URLParser"
-
-import * as URLParser from "./URLParser"
+import type { Route, State } from "./Route"
+import type { Concat } from "./Route/Concat"
+import { parsePathname } from "./Route/URL"
+import { concat, segment, Root } from "./Route"
 
 export interface Param<out> {
-  parser: Parser<out>,
-  <next>(parser: Parser<next>): Segment<Concat<out, next>>
+  route: Route<out>,
+  <next>(route: Route<next>): Segment<Concat<out, next>>
 }
 
 export interface Segment<out> {
-  parser: Parser<out>,
+  route: Route<out>,
   (string[], ...string[]): Param<out>
 }
 
-const paramReader = <a>(base: Parser<a>): Param<a> => {
-  const reader = <b>(parser: Parser<b>): Segment<Concat<a, b>> =>
-    segmentReader(concat(base, parser))
-  reader.parser = base
+const paramReader = <a>(base: Route<a>): Param<a> => {
+  const reader = <b>(route: Route<b>): Segment<Concat<a, b>> =>
+    segmentReader(concat(base, route))
+  reader.route = base
 
   return reader
 }
 
-const segmentReader = <a>(base: Parser<a>): Segment<a> => {
+const segmentReader = <a>(base: Route<a>): Segment<a> => {
   const reader = (fragments: string[], ...params: string[]): Param<a> => {
     const path = String.raw({ raw: (fragments: any) }, ...params)
-    const parts = readPath(path)
-    let parser = base
+    const parts = parsePathname(path)
+    let route = base
     for (let fragment of parts) {
       if (fragment !== "") {
-        parser = concat(parser, segment(fragment))
+        route = concat(route, segment(fragment))
       }
     }
 
-    return paramReader(parser)
+    return paramReader(route)
   }
-  reader.parser = base
+  reader.route = base
 
   return reader
 }
@@ -46,15 +44,5 @@ const segmentReader = <a>(base: Parser<a>): Segment<a> => {
 export const path = (fragments: string[], ...params: string[]): Param<[]> =>
   segmentReader(Root)(fragments, ...params)
 
-export const toParser = <out>(route: Segment<out> | Param<out>): Parser<out> =>
-  route.parser
-
-// export const parsePath = <out>(
-//   { parser }: Link<out>,
-//   url: URLParser.URL
-// ): ?out => URLParser.parsePath(parser, url)
-
-// export const parseHash = <out>(
-//   { parser }: Link<out>,
-//   url: URLParser.URL
-// ): ?out => URLParser.parseHash(parser, url)
+export const toRoute = <out>(route: Segment<out> | Param<out>): Route<out> =>
+  route.route
