@@ -361,9 +361,9 @@ const calculator = Route.Root
   .segment("+")
   .param(Route.Float)
 
-calculator.parsePath({pathname:"/calculator/313/+/3"}) // [313, 3]
-calculator.parsePath({pathname:"/calculator/313/+/"}) // null
-calculator.parsePath({pathname:"/calculator/13/+/4.2/"}) // [13, 4.2]
+calculator.parsePath({pathname:"/calculator/313/+/3"}) //> [313, 3]
+calculator.parsePath({pathname:"/calculator/313/+/"}) //> null
+calculator.parsePath({pathname:"/calculator/13/+/4.2/"}) //> [13, 4.2]
 ```
 
 > **Note:** It is just a shortcut for `concat` function specialized to take a `RouteParam<[a]>` rather arbitrary `Route<b>` (which is enforced by type checker).
@@ -473,7 +473,7 @@ const seek = Route.
 
 seek.parsePath({search:"?limit=5"}) //> null
 seek.parsePath({pathname:"/seek",search:"?limit=5"}) //> null
-seek.parsePath({pathname:"/seek/cat",search:"?limit=5"}) //> 
+seek.parsePath({pathname:"/seek/cat",search:"?limit=5"}) //> ["cat", 5]
 ```
 
 > **Note:** This is simply a shortcut for:
@@ -503,10 +503,12 @@ Route.formatPath(
     .param(Route.String)
     .segment("tag")
     .param(Route.String)
-    .segment(),
+    .segment()
+    .query("order", Route.String),
   "cats",
-  "breed"
-) //> '/blog/cats/tag/breed/'
+  "breed",
+  "color"
+) //> '/blog/cats/tag/breed/?order=color'
 ```
 
 

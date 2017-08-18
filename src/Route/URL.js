@@ -34,7 +34,12 @@ export const parseQuery = (input: string): Query =>
 export const formatQuery = (query: Query): string => {
   let result = ""
   for (let key of Object.keys(query)) {
-    result += `&${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`
+    const value = query[key]
+    if (value === "") {
+      result += `&${encodeURIComponent(key)}`
+    } else {
+      result += `&${encodeURIComponent(key)}=${encodeURIComponent(query[key])}`
+    }
   }
   return result.slice(1)
 }
