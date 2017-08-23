@@ -102,6 +102,15 @@ class URLRoute<out> implements Route<out> {
   }
 }
 
+class EmptyRoute extends URLRoute<[]> {
+  read<inn>(state: State<inn>): ?State<inn> {
+    return state
+  }
+  write<inn>(state: State<inn>): State<inn> {
+    return state
+  }
+}
+
 class RouteRoot extends URLRoute<[]> {
   read<inn>({ segments, params, query }: State<inn>): ?State<inn> {
     const [first, ...rest] = segments
@@ -226,6 +235,7 @@ class QueryParam<out> extends URLRoute<[out]> {
   }
 }
 
+export const Empty: Route<[]> = new EmptyRoute()
 export const Root: Route<[]> = new RouteRoot()
 export const concat = <a, b>(
   before: Route<a>,
