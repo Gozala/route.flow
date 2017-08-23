@@ -46,7 +46,6 @@ export interface Route<out> {
 
 export type RouteSegment = Route<[]>
 export type RouteParam<out> = Route<[out]> & QueryRoute<[out]>
-export type ConcatRoute<left, right> = Route<Concat<left, right>>
 
 class Model<a> implements State<a> {
   segments: Array<string>
