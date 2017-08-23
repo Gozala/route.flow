@@ -244,7 +244,7 @@ babel-core@^6.26.0:
     slash "^1.0.0"
     source-map "^0.5.6"
 
-babel-generator@6.25.0, babel-generator@^6.25.0:
+babel-generator@^6.25.0:
   version "6.25.0"
   resolved "https://registry.yarnpkg.com/babel-generator/-/babel-generator-6.25.0.tgz#33a1af70d5f2890aeb465a4a7793c1df6a9ea9fc"
   dependencies:
@@ -1502,13 +1502,13 @@ doctrine-temporary-fork@2.0.0-alpha-allowarrayindex:
     esutils "^2.0.2"
     isarray "^1.0.0"
 
-documentation@^5.2.1:
-  version "5.2.1"
-  resolved "https://registry.yarnpkg.com/documentation/-/documentation-5.2.1.tgz#6357006732390e9e52ed3f94dd999008a22dfffd"
+documentation@^5.2.2:
+  version "5.2.2"
+  resolved "https://registry.yarnpkg.com/documentation/-/documentation-5.2.2.tgz#bc4768d92637ff35b9b9656e4e74c1a8019a9367"
   dependencies:
     ansi-html "^0.0.7"
     babel-core "^6.17.0"
-    babel-generator "6.25.0"
+    babel-generator "^6.25.0"
     babel-plugin-system-import-transformer "3.1.0"
     babel-plugin-transform-decorators-legacy "^1.3.4"
     babel-preset-es2015 "^6.16.0"
@@ -1839,18 +1839,18 @@ float.flow@^0.1.1:
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/float.flow/-/float.flow-0.1.1.tgz#f2a5addd59fbc12203761f2b25890d1e92f67538"
 
-flow-bin@^0.53.0:
-  version "0.53.0"
-  resolved "https://registry.yarnpkg.com/flow-bin/-/flow-bin-0.53.0.tgz#f7830e609ca02b12db4127114213cccc7c0771b9"
+flow-bin@^0.53.1:
+  version "0.53.1"
+  resolved "https://registry.yarnpkg.com/flow-bin/-/flow-bin-0.53.1.tgz#9b22b63a23c99763ae533ebbab07f88c88c97d84"
 
-flow-copy-source@^1.2.0:
-  version "1.2.0"
-  resolved "https://registry.yarnpkg.com/flow-copy-source/-/flow-copy-source-1.2.0.tgz#0ce7267cca593e347da69fcf75f82a768291e730"
+flow-copy-source@^1.2.1:
+  version "1.2.1"
+  resolved "https://registry.yarnpkg.com/flow-copy-source/-/flow-copy-source-1.2.1.tgz#705c2fa8fb29a281118e1c4b66218dec24b745ec"
   dependencies:
     chokidar "^1.7.0"
     fs-extra "^3.0.1"
     glob "^7.0.0"
-    kefir "^3.2.0"
+    kefir "^3.7.3"
     yargs "^8.0.2"
 
 for-each@~0.3.2:
@@ -2606,7 +2606,7 @@ kebab-case@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/kebab-case/-/kebab-case-1.0.0.tgz#3f9e4990adcad0c686c0e701f7645868f75f91eb"
 
-kefir@^3.2.0:
+kefir@^3.7.3:
   version "3.7.3"
   resolved "https://registry.yarnpkg.com/kefir/-/kefir-3.7.3.tgz#c1d4e0a7a9f63cfd73720ae38e0630c14784ed97"
   dependencies:
