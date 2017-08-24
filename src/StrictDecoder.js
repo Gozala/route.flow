@@ -15,17 +15,17 @@ interface Decode {
     (a) => b => c => d => e => x
   ): ?x,
   <x, a, b, c, d, e, f>(
-    Route<[a, b, c, d, e]>,
+    Route<[a, b, c, d, e, f]>,
     URL,
     (a) => b => c => d => e => f => x
   ): ?x,
   <x, a, b, c, d, e, f, g>(
-    Route<[a, b, c, d, e]>,
+    Route<[a, b, c, d, e, f, g]>,
     URL,
     (a) => b => c => d => e => f => g => x
   ): ?x,
   <x, a, b, c, d, e, f, g, h>(
-    Route<[a, b, c, d, e]>,
+    Route<[a, b, c, d, e, f, g, h]>,
     URL,
     (a) => b => c => d => e => f => g => h => x
   ): ?x
@@ -35,11 +35,14 @@ export const decoder = (parse: Parse): Decode => (route, url, decoder) => {
   const params = parse(route, url)
   if (params == null) {
     return null
+  } else if (params.length === 0) {
+    return decoder()
   } else {
+    let next = decoder
     for (let param of params) {
-      decoder = decoder(param)
+      next = next(param)
     }
-    return decoder
+    return next
   }
 }
 
