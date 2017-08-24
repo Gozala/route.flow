@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "name": "route.flow",
   "description": "Library for type safe routing",
   "keywords": [
