@@ -3,6 +3,7 @@
 import * as Route from "../"
 import test from "blue-tape"
 import * as Integer from "integer.flow"
+import * as Float from "float.flow"
 
 test("test baisc", async test => {
   test.isEqual(typeof Route, "object")
@@ -55,6 +56,8 @@ test("Route.String", async test => {
   test.deepEqual(Route.String.parsePath({ pathname: "alice/blog" }), null)
   test.deepEqual(Route.String.parsePath({ pathname: "/alice" }), null)
   test.deepEqual(Route.String.parsePath({ pathname: "42" }), ["42"])
+
+  test.deepEqual(Route.String.formatPath("hi"), "hi")
 })
 
 test("Route.Float", async test => {
@@ -63,6 +66,9 @@ test("Route.Float", async test => {
   test.deepEqual(Route.Float.parsePath({ pathname: "NaN/" }), null)
   test.deepEqual(Route.Float.parsePath({ pathname: "Infinity/" }), null)
   test.deepEqual(Route.Float.parsePath({ pathname: "Bob/" }), null)
+
+  test.deepEqual(Route.Float.formatPath(Float.toFloat(42)), "42")
+  test.deepEqual(Route.Float.formatPath(Float.toFloat(-42.5)), "-42.5")
 })
 
 test("Route.Integer", async test => {
@@ -73,6 +79,9 @@ test("Route.Integer", async test => {
   test.deepEqual(Route.parsePath(Route.Integer, { pathname: "/" }), null)
   test.deepEqual(Route.parsePath(Route.Integer, { pathname: "Infinity" }), null)
   test.deepEqual(Route.parsePath(Route.Integer, { pathname: "NaN/" }), null)
+
+  test.deepEqual(Route.Integer.formatPath(Integer.truncate(7)), "7")
+  test.deepEqual(Route.Integer.formatPath(Integer.truncate(-7)), "-7")
 })
 
 test("Route.Root", async test => {
@@ -80,6 +89,8 @@ test("Route.Root", async test => {
   test.deepEqual(Route.Root.parsePath({ pathname: "" }), null)
   test.deepEqual(Route.Root.parsePath({ pathname: "/foo" }), null)
   test.deepEqual(Route.Root.parsePath({ pathname: "bar" }), null)
+
+  test.deepEqual(Route.Root.formatPath(), "/")
 })
 
 test("Route.segment", async test => {
@@ -92,6 +103,8 @@ test("Route.segment", async test => {
   test.deepEqual(Route.segment("blog").parsePath({ pathname: "/blog/" }), null)
   test.deepEqual(Route.segment("blog").parsePath({ pathname: "glob" }), null)
   test.deepEqual(Route.segment("blog").parsePath({ pathname: "/" }), null)
+
+  test.deepEqual(Route.segment("blog").formatPath(), "blog")
 })
 
 test("Route.concat", async test => {
@@ -117,10 +130,12 @@ test("Route.concat", async test => {
 
 test("(route:Route<a>).segment(string):Route<a>", async test => {
   test.deepEqual(Route.Root.segment("blog").parsePath({ pathname: "/" }), null)
+
   test.deepEqual(
     Route.Root.segment("blog").parsePath({ pathname: "/blog" }),
     []
   )
+  test.deepEqual(Route.Root.segment("blog").formatPath(), "/blog")
 
   test.deepEqual(
     Route.Float.segment("inc").parsePath({ pathname: "cat/inc" }),
@@ -129,6 +144,11 @@ test("(route:Route<a>).segment(string):Route<a>", async test => {
   test.deepEqual(Route.Float.segment("inc").parsePath({ pathname: "7/inc" }), [
     7
   ])
+
+  test.deepEqual(
+    Route.Float.segment("inc").formatPath(Float.toFloat(7)),
+    "7/inc"
+  )
 })
 
 test("(route:Route<a>).param(RouteParam<[b]>):Route<Concat<a,[b]>>", async test => {
@@ -147,6 +167,11 @@ test("(route:Route<a>).param(RouteParam<[b]>):Route<Concat<a,[b]>>", async test 
     13,
     4.2
   ])
+
+  test.deepEqual(
+    calculator.formatPath(Float.toFloat(8), Float.toFloat(9)),
+    "/calculator/8/+/9"
+  )
 })
 
 test("(route:Route<a>).concat<b>(Route<b>):Route<Concat<a, b>>", async test => {
@@ -158,6 +183,7 @@ test("(route:Route<a>).concat<b>(Route<b>):Route<Concat<a, b>>", async test => {
   test.deepEqual(blogPostID.parsePath({ pathname: "/post/42/" }), null)
   test.deepEqual(blogPostID.parsePath({ pathname: "blog/post/7" }), null)
   test.deepEqual(blogPostID.parsePath({ pathname: "/blog/post/" }), null)
+  test.deepEqual(blogPostID.formatPath(Integer.truncate(17)), "/blog/post/17")
 
   const search = Route.concat(Route.segment("blog"), Route.segment("search"))
   const term = Route.concat(search, Route.String)
@@ -166,6 +192,8 @@ test("(route:Route<a>).concat<b>(Route<b>):Route<Concat<a, b>>", async test => {
   test.deepEqual(term.parsePath({ pathname: "blog/search/42/" }), ["42"])
   test.deepEqual(term.parsePath({ pathname: "/search/cats/" }), null)
   test.deepEqual(term.parsePath({ pathname: "/blog/cats/" }), null)
+
+  test.deepEqual(term.formatPath("dog"), "blog/search/dog")
 })
 
 test("param<a>(string => ?a, a => string):RouteParam<a>", async test => {
@@ -177,6 +205,7 @@ test("param<a>(string => ?a, a => string):RouteParam<a>", async test => {
   test.deepEqual(css.parsePath({ pathname: "base.css" }), ["base.css"])
   test.deepEqual(css.parsePath({ pathname: "fontawesome-webfont.woff2" }), null)
   test.deepEqual(css.parsePath({ pathname: "style/base.css" }), null)
+  test.deepEqual(css.formatPath("util.css"), "util.css")
 
   const stylesheet = Route.Root.segment("style").param(css)
 
@@ -186,6 +215,7 @@ test("param<a>(string => ?a, a => string):RouteParam<a>", async test => {
   test.deepEqual(stylesheet.parsePath({ pathname: "base.css" }), null)
   test.deepEqual(stylesheet.parsePath({ pathname: "style/base.css" }), null)
   test.deepEqual(stylesheet.parsePath({ pathname: "/style/font.woff2" }), null)
+  test.deepEqual(stylesheet.formatPath("util.css"), "/style/util.css")
 })
 
 test("query<b>(string, RouteParam<a>):Route<[a]>", async test => {
@@ -194,6 +224,7 @@ test("query<b>(string, RouteParam<a>):Route<[a]>", async test => {
   test.deepEqual(limit.parsePath({ search: "?limit=" }), null)
   test.deepEqual(limit.parsePath({ search: "?limit=0" }), [0])
   test.deepEqual(limit.parsePath({ search: "?foo&bar&limit=2" }), [2])
+  test.deepEqual(limit.formatPath(Integer.truncate(56)), "?limit=56")
 
   const find = Route.segment("find").param(Route.String).concat(limit)
 
@@ -206,6 +237,10 @@ test("query<b>(string, RouteParam<a>):Route<[a]>", async test => {
   test.deepEqual(
     find.parsePath({ pathname: "find/cat", search: "?limit=5&sort=asc" }),
     ["cat", 5]
+  )
+  test.deepEqual(
+    find.formatPath("dog", Integer.truncate(12)),
+    "find/dog?limit=12"
   )
 })
 
@@ -223,6 +258,11 @@ test("(p:Route<a>).query(string, RouteParam<b>):Route<Concat<a, b>>", async test
   test.deepEqual(
     seek.parsePath({ pathname: "/seek/cat", search: "?limit=5" }),
     ["cat", 5]
+  )
+
+  test.deepEqual(
+    seek.formatPath("follower", Integer.truncate(3)),
+    "/seek/follower?limit=3"
   )
 })
 
@@ -386,4 +426,18 @@ test("(route:Route<a>).format(...a):URL", async test => {
       .format("cats", "breed"),
     { pathname: "/blog/cats/tag/breed/", search: "", hash: "" }
   )
+})
+
+test("trailing seperator", async test => {
+  const relativeFind = Route.segment("find").param(Route.String).segment()
+
+  test.deepEqual(relativeFind.parsePath({ pathname: "find/cat" }), null)
+  test.deepEqual(relativeFind.parsePath({ pathname: "find/cat/" }), ["cat"])
+  test.deepEqual(relativeFind.formatPath("job"), "find/job/")
+
+  const absoluteFind = Route.Root.segment("find").param(Route.String).segment()
+
+  test.deepEqual(absoluteFind.parsePath({ pathname: "/find/cat" }), null)
+  test.deepEqual(absoluteFind.parsePath({ pathname: "/find/cat/" }), ["cat"])
+  test.deepEqual(absoluteFind.formatPath("dog"), "/find/dog/")
 })

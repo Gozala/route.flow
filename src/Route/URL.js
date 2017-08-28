@@ -14,10 +14,17 @@ export type Query = {
 export const parsePathname = (url: string): string[] => url.split("/")
 
 export const formatPathname = (segments: string[]): string => {
-  if (segments.length === 0) {
-    return ""
-  } else {
-    return segments.join("/")
+  switch (segments.length) {
+    case 0:
+      return ""
+    case 1:
+      if (segments[0] === "") {
+        return "/"
+      } else {
+        return segments.join("/")
+      }
+    default:
+      return segments.join("/")
   }
 }
 
