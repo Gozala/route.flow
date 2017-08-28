@@ -39,6 +39,7 @@ export interface Route<out> {
   formatHash(...Array<mixed> & out): string,
 
   segment(path?: string): Route<out>,
+  rest<a>(Route<[a]>): Route<Concat<out, [a]>>,
   param<a>(Route<[a]>): Route<Concat<out, [a]>>,
   concat<other>(Route<other>): Route<Concat<out, other>>,
   query<a>(string, QueryRoute<[a]>): Route<Concat<out, [a]>>
@@ -70,6 +71,9 @@ class URLRoute<out> implements Route<out> {
 
   segment(name: string = ""): Route<out> {
     return new Concatenation(this, new Segment(name))
+  }
+  rest<b>(route: Route<[b]>): Route<Concat<out, [b]>> {
+    return new Concatenation(this, rest(route))
   }
   param<b>(route: Route<[b]>): Route<Concat<out, [b]>> {
     return new Concatenation(this, route)
@@ -122,6 +126,21 @@ class RouteRoot extends URLRoute<[]> {
   }
   write<inn>({ segments, params, query }: State<inn>): State<inn> {
     return state(["", ...segments], params, query)
+  }
+}
+
+class RestRoute<a> extends URLRoute<[a]> {
+  route: Route<[a]>
+  constructor(route: Route<[a]>) {
+    super()
+    this.route = route
+  }
+  read<inn>({ segments, params, query }: State<inn>): ?State<Concat<inn, [a]>> {
+    const model: State<inn> = state([segments.join("/")], params, query)
+    return this.route.read(model)
+  }
+  write<inn>(state: State<Concat<inn, [a]>>): State<inn> {
+    return this.route.write(state)
   }
 }
 
@@ -235,8 +254,8 @@ class QueryParam<out> extends URLRoute<[out]> {
   }
 }
 
-export const Empty: Route<[]> = new EmptyRoute()
-export const Root: Route<[]> = new RouteRoot()
+export const rest = <a>(route: Route<[a]>): Route<[a]> => new RestRoute(route)
+
 export const concat = <a, b>(
   before: Route<a>,
   after: Route<b>
@@ -251,6 +270,10 @@ export const param = <a>(
 export const String: RouteParam<string> = param(parseString, toString)
 export const Integer: RouteParam<integer> = param(parseInteger, toString)
 export const Float: RouteParam<float> = param(parseFloat, toString)
+
+export const Empty: Route<[]> = new EmptyRoute()
+export const Root: Route<[]> = new RouteRoot()
+export const Rest: Route<[string]> = new RestRoute(String)
 
 export const query = <a>(name: string, route: QueryRoute<[a]>): Route<[a]> =>
   new QueryParam(name, route)
