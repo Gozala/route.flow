@@ -70,16 +70,16 @@ class URLRoute<out> implements Route<out> {
   +write: <inn>(state: State<Concat<inn, out>>) => State<inn>
 
   segment(name: string = ""): Route<out> {
-    return new Concatenation(this, new Segment(name))
+    return this.concat(segment(name))
   }
   rest<b>(route: Route<[b]>): Route<Concat<out, [b]>> {
-    return new Concatenation(this, rest(route))
+    return new this.concat(rest(route))
   }
   param<b>(route: Route<[b]>): Route<Concat<out, [b]>> {
-    return new Concatenation(this, route)
+    return this.concat(route)
   }
   concat<other>(route: Route<other>): Route<Concat<out, other>> {
-    return new Concatenation(this, route)
+    return concat(this, route)
   }
   query<b>(name: string, route: QueryRoute<[b]>): Route<Concat<out, [b]>> {
     return this.param(query(name, route))
@@ -112,6 +112,9 @@ class EmptyRoute extends URLRoute<[]> {
   }
   write<inn>(state: State<inn>): State<inn> {
     return state
+  }
+  concat<other>(route: Route<other>): Route<Concat<[], other>> {
+    return route
   }
 }
 
