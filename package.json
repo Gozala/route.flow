@@ -29,7 +29,7 @@
     "flow-copy-source": "^1.2.1",
     "husky": "^0.14.0",
     "lint-staged": "^4.0.4",
-    "prettier": "^1.4.4"
+    "prettier": "^1.6.1"
   },
   "scripts": {
     "test": "npm run test:flow && npm run test:tape",
@@ -46,7 +46,10 @@
     "start": "flow-copy-source --watch --verbose src lib & babel --watch --out-dir lib src"
   },
   "lint-staged": {
-    "*.js": ["prettier --parser flow --no-semi --write", "git add"]
+    "*.js": [
+      "prettier --parser flow --no-semi --write",
+      "git add"
+    ]
   },
   "quokka": {
     "alias": {
@@ -54,7 +57,9 @@
     },
     "pro": true,
     "babel": true,
-    "plugins": ["alias-quokka-plugin"]
+    "plugins": [
+      "alias-quokka-plugin"
+    ]
   },
   "dependencies": {
     "express": "^4.15.4",
