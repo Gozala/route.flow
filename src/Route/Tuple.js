@@ -3,21 +3,21 @@
 import type { Lift } from "./Prelude/Lift"
 
 export type Tuple =
-  | []
-  | [any]
-  | [any, any]
-  | [any, any, any]
-  | [any, any, any, any]
-  | [any, any, any, any, any]
-  | [any, any, any, any, any, any]
-  | [any, any, any, any, any, any, any]
   | [any, any, any, any, any, any, any, any]
+  | [any, any, any, any, any, any, any]
+  | [any, any, any, any, any, any]
+  | [any, any, any, any, any]
+  | [any, any, any, any]
+  | [any, any, any]
+  | [any, any]
+  | [any]
+  | []
 
-export type Concat<a: Tuple, b: Tuple> = Lift<
-  b,
+export type Concat<left: Tuple, right: Tuple> = Lift<
+  [left, right],
   {
-    ([]): a,
-    <xs, x>(Concat<xs, [x]>): Concat<Concat<a, xs>, [x]>
+    <xs, x>([left, Concat<xs, [x]>]): Concat<Concat<left, xs>, [x]>,
+    ([left, []]): left
   }
 >
 
