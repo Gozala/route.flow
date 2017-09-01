@@ -1,6 +1,6 @@
 /* @flow */
 
-import type { Tuple, Concat } from "./Route/Tuple"
+import type { Concat } from "./Route/Tuple"
 import type { float } from "float.flow"
 import type { integer } from "integer.flow"
 import type { URL, Query } from "./Route/URL"
@@ -11,34 +11,34 @@ import { parseFloat } from "float.flow"
 import { toString, parseString } from "./Route/String"
 import { parsePathname, parseSearch, formatURL } from "./Route/URL"
 
-export type { float, integer, URL, Query, Concat, Tuple }
+export type { float, integer, URL, Query, Concat }
 
-export type Parse = <a: Tuple>(Route<a>, URL) => ?a
+export type Parse = <a>(Route<a>, URL) => ?a
 
-export type State<a: Tuple> = {
+export type State<a> = {
   segments: Array<string>,
   params: a,
   query: Query
 }
 
 export type QueryRoute<a> = {
-  readParam<inn: Tuple>(string, state: State<inn>): ?State<Concat<inn, [a]>>,
-  writeParam<inn: Tuple>(string, state: State<Concat<inn, [a]>>): State<inn>
+  readParam<inn>(string, state: State<inn>): ?State<Concat<inn, [a]>>,
+  writeParam<inn>(string, state: State<Concat<inn, [a]>>): State<inn>
 }
 
-export type Route<out: Tuple> = {
-  read<inn: Tuple>(state: State<inn>): ?State<Concat<inn, out>>,
-  write<inn: Tuple>(state: State<Concat<inn, out>>): State<inn>,
-  concat<other: Tuple>(Route<other>): Route<Concat<out, other>>,
+export interface Route<out> {
+  read<inn>(state: State<inn>): ?State<Concat<inn, out>>,
+  write<inn>(state: State<Concat<inn, out>>): State<inn>,
+  concat<other>(Route<other>): Route<Concat<out, other>>,
   parsePath(URL): ?out,
   parseHash(URL): ?out,
   parse(string[], Query): ?out,
 
-  format(...params: out): URL,
-  formatPath(...out): string,
-  formatHash(...out): string,
+  format(params: out): URL,
+  formatPath(params: out): string,
+  formatHash(params: out): string,
 
-  segment: (path?: string) => Route<out>,
+  segment(path?: string): Route<out>,
   rest<a>(RouteParam<a>): Route<Concat<out, [a]>>,
   param<a>(RouteParam<a>): Route<Concat<out, [a]>>,
   query<a>(string, QueryRoute<a>): Route<Concat<out, [a]>>
@@ -47,7 +47,7 @@ export type Route<out: Tuple> = {
 export type RouteSegment = Route<[]>
 export type RouteParam<a> = Route<[a]> & QueryRoute<a>
 
-class Model<a: Tuple> {
+class Model<a> {
   segments: Array<string>
   params: a
   query: Query
@@ -61,15 +61,12 @@ class Model<a: Tuple> {
 const init: [] = Object.freeze([])
 const empty: Query = Object.freeze(Object.create(null))
 
-const state = <a: Tuple>(
-  segments: Array<string>,
-  params: a,
-  query: Query
-): State<a> => new Model(segments, params, query)
+const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
+  new Model(segments, params, query)
 
-class URLRoute<out: Tuple> {
-  +read: <inn: Tuple>(state: State<inn>) => ?State<Concat<inn, out>>
-  +write: <inn: Tuple>(state: State<Concat<inn, out>>) => State<inn>
+class URLRoute<out> implements Route<out> {
+  +read: <inn>(state: State<inn>) => ?State<Concat<inn, out>>
+  +write: <inn>(state: State<Concat<inn, out>>) => State<inn>
 
   segment(name: string = ""): Route<out> {
     return this.concat(segment(name))
@@ -80,7 +77,7 @@ class URLRoute<out: Tuple> {
   param<b>(route: RouteParam<b>): Route<Concat<out, [b]>> {
     return this.concat(route)
   }
-  concat<other: Tuple>(route: Route<other>): Route<Concat<out, other>> {
+  concat<other>(route: Route<other>): Route<Concat<out, other>> {
     return concat(this, route)
   }
   query<b>(name: string, route: QueryRoute<b>): Route<Concat<out, [b]>> {
@@ -97,31 +94,32 @@ class URLRoute<out: Tuple> {
     return parse(this, segments, query)
   }
 
-  formatPath(...params: Array<mixed> & out): string {
-    return formatPath(this, ...params)
+  formatPath(params: out): string {
+    return formatPath(this, params)
   }
-  formatHash(...params: Array<mixed> & out): string {
-    return formatHash(this, ...params)
+  formatHash(params: out): string {
+    return formatHash(this, params)
   }
-  format(...params: Array<mixed> & out): URL {
-    return format(this, ...params)
+  format(params: out): URL {
+    return format(this, params)
   }
 }
 
 class EmptyRoute extends URLRoute<[]> {
-  read<inn: Tuple>(state: State<inn>): ?State<inn> {
+  read<inn>(state: State<inn>): ?State<inn> {
     return state
   }
-  write<inn: Tuple>(state: State<inn>): State<inn> {
+  write<inn>(state: State<inn>): State<inn> {
     return state
   }
-  concat<other: Tuple>(route: Route<other>): Route<Concat<[], other>> {
+  concat<other>(route: Route<other>): Route<Concat<[], other>> {
     return route
   }
 }
 
 class RouteRoot extends URLRoute<[]> {
-  read<inn: Tuple>({ segments, params, query }: State<inn>): ?State<inn> {
+  read<inn>(model: State<inn>): ?State<inn> {
+    const { segments, params, query } = model
     const [first, ...rest] = segments
     if (first === "" && rest.length !== 0) {
       return state(rest, params, query)
@@ -129,7 +127,8 @@ class RouteRoot extends URLRoute<[]> {
       return null
     }
   }
-  write<inn: Tuple>({ segments, params, query }: State<inn>): State<inn> {
+  write<inn>(model: State<inn>): State<inn> {
+    const { segments, params, query } = model
     return state(["", ...segments], params, query)
   }
 }
@@ -140,15 +139,12 @@ class RestRoute<a> extends URLRoute<[a]> {
     super()
     this.route = route
   }
-  read<inn: Tuple>({
-    segments,
-    params,
-    query
-  }: State<inn>): ?State<Concat<inn, [a]>> {
-    const model: State<inn> = state([segments.join("/")], params, query)
-    return this.route.read(model)
+  read<inn>(model: State<inn>): ?State<Concat<inn, [a]>> {
+    const { segments, params, query } = model
+    const next: State<inn> = state([segments.join("/")], params, query)
+    return this.route.read(next)
   }
-  write<inn: Tuple>(state: State<Concat<inn, [a]>>): State<inn> {
+  write<inn>(state: State<Concat<inn, [a]>>): State<inn> {
     return this.route.write(state)
   }
 }
@@ -159,7 +155,8 @@ class Segment extends URLRoute<[]> {
     super()
     this.text = text
   }
-  read<inn: Tuple>({ params, segments, query }: State<inn>): ?State<inn> {
+  read<inn>(model: State<inn>): ?State<inn> {
+    const { params, segments, query } = model
     const { text } = this
     if (segments.length === 0) {
       return null
@@ -172,7 +169,8 @@ class Segment extends URLRoute<[]> {
       }
     }
   }
-  write<inn: Tuple>({ params, segments, query }: State<inn>): State<inn> {
+  write<inn>(model: State<inn>): State<inn> {
+    const { params, segments, query } = model
     return state([this.text, ...segments], params, query)
   }
 }
@@ -185,11 +183,8 @@ class Param<a> extends URLRoute<[a]> {
     this.parseParam = parseParam
     this.formatParam = formatParam
   }
-  read<inn: Tuple>({
-    segments,
-    params,
-    query
-  }: State<inn>): ?State<Concat<inn, [a]>> {
+  read<inn>(model: State<inn>): ?State<Concat<inn, [a]>> {
+    const { segments, params, query } = model
     if (segments.length === 0) {
       return null
     } else {
@@ -202,30 +197,21 @@ class Param<a> extends URLRoute<[a]> {
       }
     }
   }
-  write<inn: Tuple>({
-    segments,
-    params,
-    query
-  }: State<Concat<inn, [a]>>): State<inn> {
+  write<inn>(model: State<Concat<inn, [a]>>): State<inn> {
+    const { segments, params, query } = model
     const segment = this.formatParam(last(params))
     return state([segment, ...segments], butlast(params), query)
   }
-  readParam<inn: Tuple>(
-    name: string,
-    { segments, params, query }: State<inn>
-  ): ?State<Concat<inn, [a]>> {
-    const value = query[name]
+  readParam<inn>(name: string, model: State<inn>): ?State<Concat<inn, [a]>> {
+    const value = model.query[name]
     const param = value != null ? this.parseParam(value) : null
     if (param == null) {
       return null
     } else {
-      return state(segments, withlast(params, param), query)
+      return state(model.segments, withlast(model.params, param), model.query)
     }
   }
-  writeParam<inn: Tuple>(
-    name: string,
-    model: State<Concat<inn, [a]>>
-  ): State<inn> {
+  writeParam<inn>(name: string, model: State<Concat<inn, [a]>>): State<inn> {
     const { segments, params, query } = model
     const param = last(params)
     const value = this.formatParam(param)
@@ -234,7 +220,7 @@ class Param<a> extends URLRoute<[a]> {
   }
 }
 
-class Concatenation<a: Tuple, b: Tuple> extends URLRoute<Concat<a, b>> {
+class Concatenation<a, b> extends URLRoute<Concat<a, b>> {
   before: Route<a>
   after: Route<b>
   constructor(before: Route<a>, after: Route<b>) {
@@ -242,7 +228,7 @@ class Concatenation<a: Tuple, b: Tuple> extends URLRoute<Concat<a, b>> {
     this.before = before
     this.after = after
   }
-  read<inn: Tuple>(state: State<inn>): ?State<Concat<Concat<inn, a>, b>> {
+  read<inn>(state: State<inn>): ?State<Concat<Concat<inn, a>, b>> {
     const { before, after } = this
     const next = before.read(state)
     if (next != null) {
@@ -251,7 +237,7 @@ class Concatenation<a: Tuple, b: Tuple> extends URLRoute<Concat<a, b>> {
       return null
     }
   }
-  write<inn: Tuple>(state: State<Concat<Concat<inn, a>, b>>): State<inn> {
+  write<inn>(state: State<Concat<Concat<inn, a>, b>>): State<inn> {
     const next = this.after.write(state)
     return this.before.write(next)
   }
@@ -265,10 +251,10 @@ class QueryParam<a> extends URLRoute<[a]> {
     this.name = name
     this.route = route
   }
-  read<inn: Tuple>(state: State<inn>): ?State<Concat<inn, [a]>> {
+  read<inn>(state: State<inn>): ?State<Concat<inn, [a]>> {
     return this.route.readParam(this.name, state)
   }
-  write<inn: Tuple>(state: State<Concat<inn, [a]>>): State<inn> {
+  write<inn>(state: State<Concat<inn, [a]>>): State<inn> {
     return this.route.writeParam(this.name, state)
   }
 }
@@ -276,7 +262,7 @@ class QueryParam<a> extends URLRoute<[a]> {
 export const rest = <a>(route: RouteParam<a>): Route<[a]> =>
   new RestRoute(route)
 
-export const concat = <a: Tuple, b: Tuple>(
+export const concat = <a, b>(
   before: Route<a>,
   after: Route<b>
 ): Route<Concat<a, b>> => new Concatenation(before, after)
@@ -298,11 +284,7 @@ export const Rest: Route<[string]> = new RestRoute(String)
 export const query = <a>(name: string, route: QueryRoute<a>): Route<[a]> =>
   new QueryParam(name, route)
 
-export const parse = <a: Tuple>(
-  route: Route<a>,
-  path: string[],
-  query: Query
-): ?a => {
+export const parse = <a>(route: Route<a>, path: string[], query: Query): ?a => {
   const output = route.read(state(path, init, query))
   if (output != null) {
     const { segments, params } = output
@@ -313,27 +295,27 @@ export const parse = <a: Tuple>(
   return null
 }
 
-export const parsePath = <a: Tuple>(route: Route<a>, url: URL): ?a =>
+export const parsePath = <a>(route: Route<a>, url: URL): ?a =>
   parse(
     route,
     parsePathname(url.pathname || ""),
     url.search == null ? empty : parseSearch(url.search)
   )
 
-export const parseHash = <a: Tuple>(route: Route<a>, url: URL): ?a =>
+export const parseHash = <a>(route: Route<a>, url: URL): ?a =>
   parse(
     route,
     parsePathname((url.hash || "").slice(1)),
     url.search == null ? empty : parseSearch(url.search)
   )
 
-export const formatPath = <a: Tuple>(route: Route<a>, ...args: a): string =>
-  format(route, ...args).toString()
+export const formatPath = <a>(route: Route<a>, args: a): string =>
+  format(route, args).toString()
 
-export const formatHash = <a: Tuple>(route: Route<a>, ...args: a): string =>
-  `#${format(route, ...args).toString()}`
+export const formatHash = <a>(route: Route<a>, args: a): string =>
+  `#${format(route, args).toString()}`
 
-export const format = <a: Tuple>(route: Route<a>, ...args: a): URL => {
+export const format = <a>(route: Route<a>, args: a): URL => {
   const { segments, params, query } = route.write(
     state([], args, Object.create(null))
   )

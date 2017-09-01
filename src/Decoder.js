@@ -1,9 +1,9 @@
-/* @flow */
+/* @noflow */
 
-import type { URL, Route, Parse, Tuple } from "./Route"
+import type { URL, Route, Parse } from "./Route"
 import { parsePath, parseHash } from "./Route"
 
-export const decoder = (parse: Parse) => <a: Tuple, b>(
+export const decoder = (parse: Parse) => <a, b>(
   route: Route<a>,
   url: URL,
   decode: (...a) => b
