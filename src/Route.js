@@ -1,17 +1,17 @@
 /* @flow */
 
-import type { Concat } from "./Route/Tuple"
+import type { Push } from "./Route/Tuple"
 import type { float } from "float.flow"
 import type { integer } from "integer.flow"
 import type { URL, Query } from "./Route/URL"
-import { last, withlast, butlast } from "./Route/Tuple"
+import { push, last, butlast } from "./Route/Tuple"
 import { identity } from "./Route/Prelude"
 import { parseInteger } from "integer.flow"
 import { parseFloat } from "float.flow"
 import { toString, parseString } from "./Route/String"
 import { parsePathname, parseSearch, formatURL } from "./Route/URL"
 
-export type { float, integer, URL, Query, Concat }
+export type { float, integer, URL, Query, Push }
 
 export type Parse = <a>(Route<a>, URL) => ?a
 
@@ -21,31 +21,41 @@ export type State<a> = {
   query: Query
 }
 
-export type QueryRoute<a> = {
-  readParam<inn>(string, state: State<inn>): ?State<Concat<inn, [a]>>,
-  writeParam<inn>(string, state: State<Concat<inn, [a]>>): State<inn>
+export interface ConstantSegment {
+  parseSegment<inn>(State<inn>): ?State<inn>,
+  formatSegment<inn>(State<inn>): State<inn>
 }
 
-export interface Route<out> {
-  read<inn>(state: State<inn>): ?State<Concat<inn, out>>,
-  write<inn>(state: State<Concat<inn, out>>): State<inn>,
-  concat<other>(Route<other>): Route<Concat<out, other>>,
-  parsePath(URL): ?out,
-  parseHash(URL): ?out,
-  parse(string[], Query): ?out,
-
-  format(params: out): URL,
-  formatPath(params: out): string,
-  formatHash(params: out): string,
-
-  segment(path?: string): Route<out>,
-  rest<a>(RouteParam<a>): Route<Concat<out, [a]>>,
-  param<a>(RouteParam<a>): Route<Concat<out, [a]>>,
-  query<a>(string, QueryRoute<a>): Route<Concat<out, [a]>>
+export interface VariableSegment<a> {
+  parseSegment<inn>(State<inn>): ?State<Push<inn, a>>,
+  formatSegment<inn>(State<Push<inn, a>>): State<inn>
 }
 
-export type RouteSegment = Route<[]>
-export type RouteParam<a> = Route<[a]> & QueryRoute<a>
+interface QueryParam<a> {
+  parseQueryParam<inn>(string, State<inn>): ?State<Push<inn, a>>,
+  formatQueryParam<inn>(string, State<Push<inn, a>>): State<inn>
+}
+
+type Segment = ConstantSegment & Route<[]>
+type Param<a> = VariableSegment<a> & QueryParam<a> & Route<[a]>
+
+export interface Route<a> {
+  parseRoute(State<[]>): ?State<a>,
+  formatRoute(State<a>): State<[]>,
+  //   concat<other>(Route<other>): Route<Concat<out, other>>,
+  parsePath(URL): ?a,
+  parseHash(URL): ?a,
+  parse(string[], Query): ?a,
+
+  format(...Array<mixed> & a): URL,
+  formatPath(...Array<mixed> & a): string,
+  formatHash(...Array<mixed> & a): string,
+
+  segment(segment?: string): Route<a>,
+  rest<b>(VariableSegment<b>): Route<Push<a, b>>,
+  param<b>(VariableSegment<b>): Route<Push<a, b>>,
+  query<b>(string, QueryParam<b>): Route<Push<a, b>>
+}
 
 class Model<a> {
   segments: Array<string>
@@ -64,61 +74,74 @@ const empty: Query = Object.freeze(Object.create(null))
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
 
-class URLRoute<out> implements Route<out> {
-  +read: <inn>(state: State<inn>) => ?State<Concat<inn, out>>
-  +write: <inn>(state: State<Concat<inn, out>>) => State<inn>
+class URLRoute<a> implements Route<a> {
+  +parseRoute: (state: State<[]>) => ?State<a>
+  +formatRoute: (state: State<a>) => State<[]>
 
-  segment(name: string = ""): Route<out> {
-    return this.concat(segment(name))
+  segment(text: string = ""): Route<a> {
+    return new ChainConstant(this, new RouteSegment(text))
   }
-  rest<b>(route: RouteParam<b>): Route<Concat<out, [b]>> {
-    return new this.concat(rest(route))
+  param<b>(param: VariableSegment<b>): Route<Push<a, b>> {
+    return new ChainVariable(this, param)
   }
-  param<b>(route: RouteParam<b>): Route<Concat<out, [b]>> {
-    return this.concat(route)
+  query<b>(name: string, param: QueryParam<b>): Route<Push<a, b>> {
+    return new ChainVariable(this, new QuerySegment(name, param))
   }
-  concat<other>(route: Route<other>): Route<Concat<out, other>> {
-    return concat(this, route)
+  rest<b>(param: VariableSegment<b>): Route<Push<a, b>> {
+    return new ChainVariable(this, new RestSegment(param))
   }
-  query<b>(name: string, route: QueryRoute<b>): Route<Concat<out, [b]>> {
-    return this.concat(query(name, route))
-  }
-
-  parsePath(url: URL): ?out {
+  //   concat<other>(route: Route<other>): Route<Concat<out, other>> {
+  //     return concat(this, route)
+  //   }
+  parsePath(url: URL): ?a {
     return parsePath(this, url)
   }
-  parseHash(url: URL): ?out {
+  parseHash(url: URL): ?a {
     return parseHash(this, url)
   }
-  parse(segments: string[], query: Query): ?out {
+  parse(segments: string[], query: Query): ?a {
     return parse(this, segments, query)
   }
-
-  formatPath(params: out): string {
-    return formatPath(this, params)
+  formatPath(...params: a & Array<mixed>): string {
+    return formatPath(this, ...params)
   }
-  formatHash(params: out): string {
-    return formatHash(this, params)
+  formatHash(...params: a & Array<mixed>): string {
+    return formatHash(this, ...params)
   }
-  format(params: out): URL {
-    return format(this, params)
-  }
-}
-
-class EmptyRoute extends URLRoute<[]> {
-  read<inn>(state: State<inn>): ?State<inn> {
-    return state
-  }
-  write<inn>(state: State<inn>): State<inn> {
-    return state
-  }
-  concat<other>(route: Route<other>): Route<Concat<[], other>> {
-    return route
+  format(...params: a & Array<mixed>): URL {
+    return format(this, ...params)
   }
 }
 
-class RouteRoot extends URLRoute<[]> {
-  read<inn>(model: State<inn>): ?State<inn> {
+class VariableRoute<a> extends URLRoute<[a]> implements VariableSegment<a> {
+  +parseSegment: <inn>(State<inn>) => ?State<Push<inn, a>>
+  +formatSegment: <inn>(State<Push<inn, a>>) => State<inn>
+
+  parseRoute(state: State<[]>): ?State<[a]> {
+    return this.parseSegment(state)
+  }
+  formatRoute(state: State<[a]>): State<[]> {
+    return this.formatSegment(state)
+  }
+}
+
+class BaseSegment extends URLRoute<[]> implements ConstantSegment {
+  parseSegment<inn>(state: State<inn>): ?State<inn> {
+    return state
+  }
+  formatSegment<inn>(state: State<inn>): State<inn> {
+    return state
+  }
+  parseRoute(state: State<[]>): ?State<[]> {
+    return this.parseSegment(state)
+  }
+  formatRoute(state: State<[]>): State<[]> {
+    return this.formatSegment(state)
+  }
+}
+
+class RootSegment extends BaseSegment {
+  parseSegment<inn>(model: State<inn>): ?State<inn> {
     const { segments, params, query } = model
     const [first, ...rest] = segments
     if (first === "" && rest.length !== 0) {
@@ -127,35 +150,35 @@ class RouteRoot extends URLRoute<[]> {
       return null
     }
   }
-  write<inn>(model: State<inn>): State<inn> {
+  formatSegment<inn>(model: State<inn>): State<inn> {
     const { segments, params, query } = model
     return state(["", ...segments], params, query)
   }
 }
 
-class RestRoute<a> extends URLRoute<[a]> {
-  route: Route<[a]>
-  constructor(route: Route<[a]>) {
+class RestSegment<a> extends VariableRoute<a> {
+  inner: VariableSegment<a>
+  constructor(inner: VariableSegment<a>) {
     super()
-    this.route = route
+    this.inner = inner
   }
-  read<inn>(model: State<inn>): ?State<Concat<inn, [a]>> {
+  parseSegment<inn>(model: State<inn>): ?State<Push<inn, a>> {
     const { segments, params, query } = model
     const next: State<inn> = state([segments.join("/")], params, query)
-    return this.route.read(next)
+    return this.inner.parseSegment(next)
   }
-  write<inn>(state: State<Concat<inn, [a]>>): State<inn> {
-    return this.route.write(state)
+  formatSegment<inn>(state: State<Push<inn, a>>): State<inn> {
+    return this.inner.formatSegment(state)
   }
 }
 
-class Segment extends URLRoute<[]> {
+class RouteSegment extends BaseSegment {
   text: string
   constructor(text: string) {
     super()
     this.text = text
   }
-  read<inn>(model: State<inn>): ?State<inn> {
+  parseSegment<inn>(model: State<inn>): ?State<inn> {
     const { params, segments, query } = model
     const { text } = this
     if (segments.length === 0) {
@@ -169,13 +192,13 @@ class Segment extends URLRoute<[]> {
       }
     }
   }
-  write<inn>(model: State<inn>): State<inn> {
+  formatSegment<inn>(model: State<inn>): State<inn> {
     const { params, segments, query } = model
     return state([this.text, ...segments], params, query)
   }
 }
 
-class Param<a> extends URLRoute<[a]> {
+class RouteParam<a> extends VariableRoute<a> /*implements QueryParam<a>*/ {
   parseParam: string => ?a
   formatParam: a => string
   constructor(parseParam: string => ?a, formatParam: a => string) {
@@ -183,7 +206,7 @@ class Param<a> extends URLRoute<[a]> {
     this.parseParam = parseParam
     this.formatParam = formatParam
   }
-  read<inn>(model: State<inn>): ?State<Concat<inn, [a]>> {
+  parseSegment<inn>(model: State<inn>): ?State<Push<inn, a>> {
     const { segments, params, query } = model
     if (segments.length === 0) {
       return null
@@ -191,27 +214,27 @@ class Param<a> extends URLRoute<[a]> {
       const [next, ...rest] = segments
       const param = this.parseParam(next)
       if (param != null) {
-        return state(rest, withlast(params, param), query)
+        return state(rest, push(params, param), query)
       } else {
         return null
       }
     }
   }
-  write<inn>(model: State<Concat<inn, [a]>>): State<inn> {
+  formatSegment<inn>(model: State<Push<inn, a>>): State<inn> {
     const { segments, params, query } = model
     const segment = this.formatParam(last(params))
     return state([segment, ...segments], butlast(params), query)
   }
-  readParam<inn>(name: string, model: State<inn>): ?State<Concat<inn, [a]>> {
+  parseQueryParam<inn>(name: string, model: State<inn>): ?State<Push<inn, a>> {
     const value = model.query[name]
     const param = value != null ? this.parseParam(value) : null
     if (param == null) {
       return null
     } else {
-      return state(model.segments, withlast(model.params, param), model.query)
+      return state(model.segments, push(model.params, param), model.query)
     }
   }
-  writeParam<inn>(name: string, model: State<Concat<inn, [a]>>): State<inn> {
+  formatQueryParam<inn>(name: string, model: State<Push<inn, a>>): State<inn> {
     const { segments, params, query } = model
     const param = last(params)
     const value = this.formatParam(param)
@@ -220,72 +243,99 @@ class Param<a> extends URLRoute<[a]> {
   }
 }
 
-class Concatenation<a, b> extends URLRoute<Concat<a, b>> {
-  before: Route<a>
-  after: Route<b>
-  constructor(before: Route<a>, after: Route<b>) {
+class ChainConstant<a> extends URLRoute<a> {
+  base: Route<a>
+  next: ConstantSegment
+  constructor(base: Route<a>, next: ConstantSegment) {
     super()
-    this.before = before
-    this.after = after
+    this.base = base
+    this.next = next
   }
-  read<inn>(state: State<inn>): ?State<Concat<Concat<inn, a>, b>> {
-    const { before, after } = this
-    const next = before.read(state)
+  parseRoute(state: State<[]>): ?State<a> {
+    const next = this.base.parseRoute(state)
     if (next != null) {
-      return after.read(next)
+      return this.next.parseSegment(next)
     } else {
       return null
     }
   }
-  write<inn>(state: State<Concat<Concat<inn, a>, b>>): State<inn> {
-    const next = this.after.write(state)
-    return this.before.write(next)
+  formatRoute(state: State<a>): State<[]> {
+    return this.base.formatRoute(this.next.formatSegment(state))
   }
 }
 
-class QueryParam<a> extends URLRoute<[a]> {
+class ChainVariable<a, b> extends URLRoute<Push<a, b>> {
+  base: Route<a>
+  next: VariableSegment<b>
+  constructor(base: Route<a>, next: VariableSegment<b>) {
+    super()
+    this.base = base
+    this.next = next
+  }
+  parseRoute(state: State<[]>): ?State<Push<a, b>> {
+    const next = this.base.parseRoute(state)
+    if (next != null) {
+      return this.next.parseSegment(next)
+    } else {
+      return null
+    }
+  }
+  formatRoute(state: State<Push<a, b>>): State<[]> {
+    return this.base.formatRoute(this.next.formatSegment(state))
+  }
+}
+
+class QuerySegment<a> extends VariableRoute<a> {
   name: string
-  route: QueryRoute<a>
-  constructor(name: string, route: QueryRoute<a>) {
+  queryParam: QueryParam<a>
+  constructor(name: string, queryParam: QueryParam<a>) {
     super()
     this.name = name
-    this.route = route
+    this.queryParam = queryParam
   }
-  read<inn>(state: State<inn>): ?State<Concat<inn, [a]>> {
-    return this.route.readParam(this.name, state)
+  parseQueryParam<inn>(name: string, state: State<inn>): ?State<Push<inn, a>> {
+    return this.queryParam.parseQueryParam(name, state)
   }
-  write<inn>(state: State<Concat<inn, [a]>>): State<inn> {
-    return this.route.writeParam(this.name, state)
+  formatQueryParam<inn>(name: string, state: State<Push<inn, a>>): State<inn> {
+    return this.queryParam.formatQueryParam(name, state)
+  }
+  parseSegment<inn>(state: State<inn>): ?State<Push<inn, a>> {
+    return this.queryParam.parseQueryParam(this.name, state)
+  }
+  formatSegment<inn>(state: State<Push<inn, a>>): State<inn> {
+    return this.queryParam.formatQueryParam(this.name, state)
   }
 }
 
-export const rest = <a>(route: RouteParam<a>): Route<[a]> =>
-  new RestRoute(route)
+export const rest = <a>(
+  route: VariableSegment<a>
+): VariableSegment<a> & Route<[a]> => new RestSegment(route)
 
-export const concat = <a, b>(
-  before: Route<a>,
-  after: Route<b>
-): Route<Concat<a, b>> => new Concatenation(before, after)
+// export const concat = <a, b>(
+//   before: Route<a>,
+//   after: Route<b>
+// ): Route<Concat<a, b>> => new Concatenation(before, after)
 
-export const segment = (text: string = ""): RouteSegment => new Segment(text)
-export const param = <a>(
-  parse: string => ?a,
-  format: a => string
-): RouteParam<a> => new Param(parse, format)
+export const segment = (text: string = ""): Segment => new RouteSegment(text)
 
-export const String: RouteParam<string> = param(parseString, toString)
-export const Integer: RouteParam<integer> = param(parseInteger, toString)
-export const Float: RouteParam<float> = param(parseFloat, toString)
+export const param = <a>(parse: string => ?a, format: a => string): Param<a> =>
+  new RouteParam(parse, format)
 
-export const Empty: Route<[]> = new EmptyRoute()
-export const Root: Route<[]> = new RouteRoot()
-export const Rest: Route<[string]> = new RestRoute(String)
+export const String: Param<string> = param(parseString, toString)
+export const Integer: Param<integer> = param(parseInteger, toString)
+export const Float: Param<float> = param(parseFloat, toString)
 
-export const query = <a>(name: string, route: QueryRoute<a>): Route<[a]> =>
-  new QueryParam(name, route)
+export const Base: Segment = new BaseSegment()
+export const Root: Segment = new RootSegment()
+export const Rest: VariableSegment<string> & Route<[string]> = new RestSegment(
+  String
+)
+
+export const query = <a>(name: string, route: QueryParam<a>): Param<a> =>
+  new QuerySegment(name, route)
 
 export const parse = <a>(route: Route<a>, path: string[], query: Query): ?a => {
-  const output = route.read(state(path, init, query))
+  const output = route.parseRoute(state(path, init, query))
   if (output != null) {
     const { segments, params } = output
     if (segments.length < 1 || segments[0] == "") {
@@ -309,14 +359,18 @@ export const parseHash = <a>(route: Route<a>, url: URL): ?a =>
     url.search == null ? empty : parseSearch(url.search)
   )
 
-export const formatPath = <a>(route: Route<a>, args: a): string =>
-  format(route, args).toString()
+export const formatPath = <a>(
+  route: Route<a>,
+  ...args: a & Array<mixed>
+): string => format(route, ...args).toString()
 
-export const formatHash = <a>(route: Route<a>, args: a): string =>
-  `#${format(route, args).toString()}`
+export const formatHash = <a>(
+  route: Route<a>,
+  ...args: a & Array<mixed>
+): string => `#${format(route, ...args).toString()}`
 
-export const format = <a>(route: Route<a>, args: a): URL => {
-  const { segments, params, query } = route.write(
+export const format = <a>(route: Route<a>, ...args: a): URL => {
+  const { segments, params, query } = route.formatRoute(
     state([], args, Object.create(null))
   )
   return formatURL(segments, query)
