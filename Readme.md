@@ -624,6 +624,15 @@ Route
 
     npm install route.flow
 
+## Prior Art
+
+This was started after [url-parser][url-parser.elm] package in [Elm][], but later on moved towards the [type safe routing][routing spock] approach used in [Spock][] - A lightweight [Haskell][] web framework. Both are great source of inspiration for this work.
+
+[Haskell]:https://www.haskell.org/
+[routing spock]:https://www.spock.li/2015/04/19/type-safe_routing.html
+[Spock]:https://www.spock.li/
+[url-parser.elm]:http://package.elm-lang.org/packages/evancz/url-parser/latest/UrlParser
+[Elm]:http://elm-lang.org/
 [node URL]:https://nodejs.org/dist/latest-v8.x/docs/api/url.html#url_class_url
 [Location]:https://developer.mozilla.org/en-US/docs/Web/API/Location
 [opquae type alias]:https://flow.org/en/docs/types/opaque-types/
