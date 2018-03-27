@@ -1,9 +1,6 @@
-/* @flow */
+// @flow strict
 
-import type { Lift } from "./Prelude/Lift"
-
-export type Push<xs, x> = Lift<
-  xs,
+export type Push<xs, x> = $Call<
   {
     <a, b, c, d, e, f, g, h>([]): [x],
     <a, b, c, d, e, f, g, h>([a]): [a, x],
@@ -16,7 +13,8 @@ export type Push<xs, x> = Lift<
     <a, b, c, d, e, f, g, h>(
       [a, b, c, d, e, f, g, h]
     ): [a, b, c, d, e, f, g, h, x]
-  }
+  },
+  xs
 >
 
 export const push = <x, xs>(tuple: xs, last: x): Push<xs, x> => [

@@ -1,4 +1,4 @@
-/* @flow */
+// @flow strict
 
 export type URL = {
   pathname?: string,
@@ -36,7 +36,7 @@ export const parseQuery = (input: string): Query =>
     query[decodeURIComponent(key)] =
       value == null ? "" : decodeURIComponent(value)
     return query
-  }, Object.create(null))
+  }, (Object.create(null): Object))
 
 export const formatQuery = (query: Query): string => {
   let result = ""

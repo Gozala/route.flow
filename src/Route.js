@@ -69,7 +69,7 @@ class Model<a> {
 }
 
 const init: [] = Object.freeze([])
-const empty: Query = Object.freeze(Object.create(null))
+const empty: Query = (Object.freeze(Object.create(null)):Object)
 
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
@@ -371,7 +371,7 @@ export const formatHash = <a>(
 
 export const format = <a>(route: Route<a>, ...args: a): URL => {
   const { segments, params, query } = route.formatRoute(
-    state([], args, Object.create(null))
+    state([], args, (Object.create(null):Object))
   )
   return formatURL(segments, query)
 }
