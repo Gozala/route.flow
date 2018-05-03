@@ -1,11 +1,10 @@
-/* @flow */
+// @flow strict
 
 import type { Push } from "./Route/Tuple"
 import type { float } from "float.flow"
 import type { integer } from "integer.flow"
 import type { URL, Query } from "./Route/URL"
 import { push, last, butlast } from "./Route/Tuple"
-import { identity } from "./Route/Prelude"
 import { parseInteger } from "integer.flow"
 import { parseFloat } from "float.flow"
 import { toString, parseString } from "./Route/String"
@@ -22,39 +21,41 @@ export type State<a> = {
 }
 
 export interface ConstantSegment {
-  parseSegment<inn>(State<inn>): ?State<inn>,
-  formatSegment<inn>(State<inn>): State<inn>
+  parseSegment<inn>(State<inn>): ?State<inn>;
+  formatSegment<inn>(State<inn>): State<inn>;
 }
 
 export interface VariableSegment<a> {
-  parseSegment<inn>(State<inn>): ?State<Push<inn, a>>,
-  formatSegment<inn>(State<Push<inn, a>>): State<inn>
+  parseSegment<inn>(State<inn>): ?State<Push<inn, a>>;
+  formatSegment<inn>(State<Push<inn, a>>): State<inn>;
 }
 
-interface QueryParam<a> {
-  parseQueryParam<inn>(string, State<inn>): ?State<Push<inn, a>>,
-  formatQueryParam<inn>(string, State<Push<inn, a>>): State<inn>
+export interface QueryParam<a> {
+  parseQueryParam<inn>(string, State<inn>): ?State<Push<inn, a>>;
+  formatQueryParam<inn>(string, State<Push<inn, a>>): State<inn>;
 }
 
-type Segment = ConstantSegment & Route<[]>
-type Param<a> = VariableSegment<a> & QueryParam<a> & Route<[a]>
+export type Segment = ConstantSegment & Route<[]>
+export type Param<a> = VariableSegment<a> & QueryParam<a> & Route<[a]>
 
 export interface Route<a> {
-  parseRoute(State<[]>): ?State<a>,
-  formatRoute(State<a>): State<[]>,
+  parseRoute(State<[]>): ?State<a>;
+  formatRoute(State<a>): State<[]>;
   //   concat<other>(Route<other>): Route<Concat<out, other>>,
-  parsePath(URL): ?a,
-  parseHash(URL): ?a,
-  parse(string[], Query): ?a,
+  parsePath(URL): ?a;
+  parseHash(URL): ?a;
+  parse(string[], Query): ?a;
 
-  format(...Array<mixed> & a): URL,
-  formatPath(...Array<mixed> & a): string,
-  formatHash(...Array<mixed> & a): string,
+  format(...Array<mixed> & a): URL;
+  formatPath(...Array<mixed> & a): string;
+  formatHash(...Array<mixed> & a): string;
 
-  segment(segment?: string): Route<a>,
-  rest<b>(VariableSegment<b>): Route<Push<a, b>>,
-  param<b>(VariableSegment<b>): Route<Push<a, b>>,
-  query<b>(string, QueryParam<b>): Route<Push<a, b>>
+  segment(segment?: string): self;
+  const(Segment): self;
+  var<b>(VariableSegment<b>): Route<Push<a, b>>;
+  rest<b>(VariableSegment<b>): Route<Push<a, b>>;
+  param<b>(VariableSegment<b>): Route<Push<a, b>>;
+  query<b>(string, QueryParam<b>): Route<Push<a, b>>;
 }
 
 class Model<a> {
@@ -69,7 +70,7 @@ class Model<a> {
 }
 
 const init: [] = Object.freeze([])
-const empty: Query = (Object.freeze(Object.create(null)):Object)
+const empty: Query = (Object.freeze(Object.create(null)): Object)
 
 const state = <a>(segments: Array<string>, params: a, query: Query): State<a> =>
   new Model(segments, params, query)
@@ -78,8 +79,11 @@ class URLRoute<a> implements Route<a> {
   +parseRoute: (state: State<[]>) => ?State<a>
   +formatRoute: (state: State<a>) => State<[]>
 
-  segment(text: string = ""): Route<a> {
+  segment(text: string = "") {
     return new ChainConstant(this, new RouteSegment(text))
+  }
+  const(segment: Segment) {
+    return new ChainConstant(this, segment)
   }
   param<b>(param: VariableSegment<b>): Route<Push<a, b>> {
     return new ChainVariable(this, param)
@@ -89,6 +93,9 @@ class URLRoute<a> implements Route<a> {
   }
   rest<b>(param: VariableSegment<b>): Route<Push<a, b>> {
     return new ChainVariable(this, new RestSegment(param))
+  }
+  var<b>(segment: VariableSegment<b>): Route<Push<a, b>> {
+    return new ChainVariable(this, segment)
   }
   //   concat<other>(route: Route<other>): Route<Concat<out, other>> {
   //     return concat(this, route)
@@ -245,8 +252,8 @@ class RouteParam<a> extends VariableRoute<a> /*implements QueryParam<a>*/ {
 
 class ChainConstant<a> extends URLRoute<a> {
   base: Route<a>
-  next: ConstantSegment
-  constructor(base: Route<a>, next: ConstantSegment) {
+  next: Segment
+  constructor(base: Route<a>, next: Segment) {
     super()
     this.base = base
     this.next = next
@@ -371,7 +378,7 @@ export const formatHash = <a>(
 
 export const format = <a>(route: Route<a>, ...args: a): URL => {
   const { segments, params, query } = route.formatRoute(
-    state([], args, (Object.create(null):Object))
+    state([], args, (Object.create(null): Object))
   )
   return formatURL(segments, query)
 }

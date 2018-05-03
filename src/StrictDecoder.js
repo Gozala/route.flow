@@ -1,4 +1,4 @@
-/* @flow */
+// @flow strict
 
 import type { URL, Route, Parse } from "./Route"
 import { parsePath, parseHash } from "./Route"

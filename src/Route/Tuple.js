@@ -17,6 +17,15 @@ export type Push<xs, x> = $Call<
   xs
 >
 
+export type Concat<xs, ys> = $Call<
+  {
+    ([]): ys,
+    <y>([y]): Push<xs, y>,
+    <y, zs>(Push<zs, y>): Concat<zs, Push<xs, y>>
+  },
+  ys
+>
+
 export const push = <x, xs>(tuple: xs, last: x): Push<xs, x> => [
   ...(tuple: any),
   last

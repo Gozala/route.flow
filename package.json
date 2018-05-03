@@ -1,5 +1,5 @@
 {
-  "version": "0.1.5",
+  "version": "0.3.0",
   "name": "route.flow",
   "description": "Library for type safe routing",
   "keywords": [
@@ -25,12 +25,12 @@
     "babel-preset-flow-syntax": "1.0.1",
     "babel-register": "^6.26.0",
     "blue-tape": "^1.0.0",
-    "documentation": "^6.1.0",
-    "flow-bin": "^0.68.0",
+    "documentation": "^6.3.2",
+    "flow-bin": "^0.71.0",
     "flow-copy-source": "^1.3.0",
     "husky": "^0.14.0",
-    "lint-staged": "^7.0.0",
-    "prettier": "^1.11.1"
+    "lint-staged": "^7.0.5",
+    "prettier": "^1.12.1"
   },
   "scripts": {
     "test": "npm run build:node && npm run test:flow && npm run test:tape",
@@ -57,7 +57,9 @@
       "route.flow": "src/Route"
     },
     "pro": true,
-    "babel": true,
+    "babel": {
+      "env": "development"
+    },
     "plugins": ["alias-quokka-plugin"]
   },
   "dependencies": {
